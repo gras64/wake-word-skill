@@ -1,0 +1,5 @@
+  python:
+    - psutil==5.2.1
+
+  system:
+    all: python3-pip libopenblas-dev python3-scipy cython libhdf5-dev python3-h5py portaudio19-dev

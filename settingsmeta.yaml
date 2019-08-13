@@ -1,22 +1,14 @@
 name: Wake word
 skillMetadata:
   sections:
-    - name: Options << Name of section
+    - name: Data upload to Precise-Community-Data
       fields:
-        - name: internal_python_variable_name
-          type: text
-          label: Setting Friendly Display Name
-          value: ""
+        - name: upload
+          type: checkbox
+          label: upload aktiv
+          value: "false"
           placeholder: demo prompt in the input box
-    - name: Login << Name of another section
-      fields:
-        - type: label
-          label: Just a little bit of extra info for the user to understand following settings
-        - name: username
+        - name: repo
           type: text
-          label: Username
-          value: ""
-        - name: password
-          type: password
-          label: Password
-          value: ""
+          label: repository for upload
+          value: "https://github.com/MycroftAI/Precise-Community-Data.git"

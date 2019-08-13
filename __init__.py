@@ -1,8 +1,6 @@
 from os.path import dirname, abspath, os, sys
 import time
-import wget
 import subprocess
-import zipfile
 import psutil as psutil
 import pyaudio
 from git import Repo
@@ -17,10 +15,10 @@ from mycroft.util import play_wav, resolve_resource_file
 from mycroft.util.time import now_local
 from mycroft.util.log import LOG, getLogger
 
-#try:
-#    from mycroft.skills.WakeWord.mycroftprecice.precice.train_data import TrainData
-#except ImportError:
-#    self.log.info("precice not install")
+try:
+    from mycroft.skills.WakeWord.precice.train_data import TrainData
+except ImportError:
+    self.log.info("precice not install")
 
 LOGGER = getLogger(__name__)
 
