@@ -58,8 +58,8 @@ class WakeWord(MycroftSkill):
         if not os.path.isdir(self.source_path + '/mycroft-precise/mycroft_precise.egg-info'):
             self.log.info(
                 "Downloading precice source")
-            if not os.path.isdir(self.source_path+"/precice"):
-                Repo.clone_from('https://github.com/MycroftAI/mycroft-precise', self.source_path+"/precice")
+            if not os.path.isdir(self.source_path+"/precise"):
+                Repo.clone_from('https://github.com/MycroftAI/mycroft-precise', self.source_path+"/precise")
             self.log.info("installing....")
             if self.settings.get("precice_pid)") is None:
                 self.log.info("Starting installation")
