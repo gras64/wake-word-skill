@@ -1,5 +1,6 @@
 from os.path import dirname, abspath, os, sys
 import time
+import uuid
 import subprocess
 import psutil as psutil
 import pyaudio
@@ -15,18 +16,15 @@ from mycroft.util import play_wav, resolve_resource_file
 from mycroft.util.time import now_local
 from mycroft.util.log import LOG, getLogger
 
-try:
-    from mycroft.skills.WakeWord.precice.train_data import TrainData
-except ImportError:
-    self.log.info("precice not install")
-
 LOGGER = getLogger(__name__)
-
+#try:
+#from MycroftSkill.WakeWord.precise.precise.scripts.train import Trainer
+#except ImportError:
+    #self.log.info("precice not install")
 
 class WakeWord(MycroftSkill):
     def __init__(self):
         MycroftSkill.__init__(self)
-        self.play_process = None
         self.record_process = None
         self.start_time = 0
         self.last_index = 24  # index of last pixel in countdowns
@@ -41,7 +39,9 @@ class WakeWord(MycroftSkill):
         self.settings["formate"] = "S16_LE"
         self.upload = self.settings.get('upload') \
             if self.settings.get('upload') is not None else False
-        self.install_precice_source()
+        if not os.path.isdir(self.file_system.path + "/precise/mycroft_precise.egg-info"):
+            self.log.info("no precise installed. beginn installation")
+            self.install_precice_source()
 
     def record(self, file_path, duration, rate, channels):
         if duration > 0:
@@ -53,22 +53,20 @@ class WakeWord(MycroftSkill):
                 ["arecord", "-r", str(rate), "-c", str(channels), "-f", str("S16_LE"), file_path])
 
     def install_precice_source(self):
-        if not os.path.isdir(self.source_path + '/mycroft-precise/mycroft_precise.egg-info'):
-            self.log.info(
-                "Downloading precice source")
-            if not os.path.isdir(self.source_path+"/precise"):
-                Repo.clone_from('https://github.com/MycroftAI/mycroft-precise', self.source_path+"/precise")
-            self.log.info("installing....")
-            if self.settings.get("precice_pid)") is None:
-                self.log.info("Starting installation")
-                os.chmod(self.source_path + '/precise/setup.sh', 0o755)
-                precice_proc = subprocess.Popen(self.source_path + '/precise/setup.sh',
-                                            preexec_fn=os.setsid, shell=True)
-                self.settings["precice_pid"] = precice_proc.pid
-                return True
-            else:
-                return False
+        if not os.path.isdir(self.file_system.path+"/precise"):
+            Repo.clone_from('https://github.com/MycroftAI/mycroft-precise', self.file_system.path+"/precise")
+            self.log.info("Downloading precice source")
+        self.log.info("installing....")
+        if self.settings.get("precice_pid)") is None:
+            self.log.info("Starting installation")
+            os.chmod(self.file_system.path + '/precise/setup.sh', 0o755)
+            precice_proc = subprocess.Popen(self.file_system.path+'/precise/setup.sh',
+                                         preexec_fn=os.setsid, shell=True)
+            self.settings["precice_pid"] = precice_proc.pid
             return True
+        else:
+            return False
+        return True
        # except Exception:
         #    self.log.info("precice source not installed - something went wrong!")
         #    return False
@@ -101,12 +99,12 @@ class WakeWord(MycroftSkill):
                     path = "wake-word/"+ self.lang + "-short/"
                     if i == 2:
                         path = "test/wake-word/"+ self.lang + "-short/"
-                    soundfile = name+ "-" + self.lang +"."+(uuid)+".wav"
+                    soundfile = name+ "-" + self.lang +"."+str(uuid.uuid1())+".wav"
                     self.start_recording(name,i,path,soundfile)
                     i = i + 1
-                    if i == 5:
-                        if not self.ask_yesno("is.all.ok") == "yes":
-                            i = 1
+                    #if i == 5:
+                        #if not self.ask_yesno("is.all.ok") == "yes":
+                         #   i = 1
             wait_while_speaking()
             self.speak_dialog("none.wake.word")
             time.sleep(4)
@@ -119,12 +117,12 @@ class WakeWord(MycroftSkill):
                     path = "none-wake-words/"+ self.lang + "-short/"
                     if i == 2:
                         path = "test/none-wake-words/"+ self.lang + "-short/"
-                    soundfile = "not"+ name + "-"+ self.lang +"."+(uuid)+".wav"
-                    self.start_recording(name,i,path,soundfile)
+                    soundfile = "not"+ name + "-"+ self.lang +"."+str(uuid.uuid1())+".wav"
+                    #self.start_recording(name,i,path,soundfile)
                     i = i + 1
-                    if i == 5:
-                        if not self.ask_yesno("is.all.ok") == "yes":
-                            i = 1
+                    #if i == 5:
+                        #if not self.ask_yesno("is.all.ok") == "yes":
+                         #   i = 1
             self.speak_dialog("start.calculating")
             self.calculating(name)
 
@@ -202,16 +200,17 @@ class WakeWord(MycroftSkill):
         else:
             return False
 
-#    def calculating(self, name):
-       # if self.settings.get("precice_calc_pid)") is None:
-           # precice_calc = subprocess.Popen('self.source_path + '/mycroft-precise-0.3.0/precise-train', '-e', '60', name+'.net', self.settings["file_path"]+'/'name],
-           #                             preexec_fn=os.setsid, shell=True)
-        #    self.settings["precice_calc_pid"] = precice_calc.pid
-         #   self.speak_dialog("end.calculating",
-          #                      data={"name": name})
-           # return True
-        #else:
-         #   return False
+    def calculating(self, name):
+        if self.settings.get("precice_calc_pid)") is None:
+            precice_calc = subprocess.Popen([self.file_system.path+'/precise/precise/scripts/train.py', name+'.net',
+                                        self.settings["file_path"]+'/'+name, '-e', str(600)],
+                                        bufsize=-1, preexec_fn=os.setsid, shell=True)
+            self.settings["precice_calc_pid"] = precice_calc.pid
+            self.speak_dialog("end.calculating",
+                                data={"name": name})
+            return True
+        else:
+            return False
 
    # def config(self, name):
     #    from mycroft.configuration.config import (
