@@ -207,7 +207,7 @@ class WakeWord(MycroftSkill):
     def calculating(self, name):
         if self.settings.get("precice_calc_pid") is None:
             if not os.isdir(self.settings["file_path"]+name+"not-wake-words/noises"):
-                ZipFile.extractall(self.file_system.path+"nonesounds.7z", self.settings["file_path"]+name+"not-wake-words/noises")
+                zipfile.extractall(self.file_system.path+"nonesounds.7z", self.settings["file_path"]+name+"not-wake-words/noises")
             precice_calc = subprocess.Popen([self.file_system.path+'/precise/.venv/bin/python',
                                         self.file_system.path+'/precise/precise/scripts/train.py', self.file_system.path+'/'+name+'.net',
                                         self.settings["file_path"]+'/'+name, '-e', str(600)],
