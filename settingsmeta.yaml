@@ -12,3 +12,7 @@ skillMetadata:
           type: text
           label: repository for upload
           value: "https://github.com/MycroftAI/Precise-Community-Data.git"
+        - name: selling
+          type: number
+          value: "15"
+          label: Sell number off recordings on the device

@@ -4,6 +4,7 @@ import uuid
 import subprocess
 import psutil as psutil
 import pyaudio
+import wget, zipfile
 from git import Repo
 from speech_recognition import Recognizer
 
@@ -34,14 +35,15 @@ class WakeWord(MycroftSkill):
         self.settings["min_free_disk"] = 100  # min mb to leave free on disk
         self.settings["rate"] = 16000 # sample rate, hertz
         self.settings["channels"] = 1  # recording channels (1 = mono)
-        self.settings["file_path"] = self.file_system.path + "/"+"recordings"
+        self.settings["file_path"] = self.file_system.path + "/"+"data"
+        self.settings["sell_path"] = self.file_system.path + "/"+"recordings"
         self.settings["duration"] = -1  # default = unknown
         self.settings["formate"] = "S16_LE"
         self.upload = self.settings.get('upload') \
             if self.settings.get('upload') is not None else False
-        if not os.path.isdir(self.file_system.path + "/precise/mycroft_precise.egg-info"):
-            self.log.info("no precise installed. beginn installation")
-            self.install_precice_source()
+        #if not os.path.isdir(self.file_system.path + "/precise/mycroft_precise.egg-info"):
+        #    self.log.info("no precise installed. beginn installation")
+        self.install_precice_source()
 
     def record(self, file_path, duration, rate, channels):
         if duration > 0:
@@ -56,6 +58,8 @@ class WakeWord(MycroftSkill):
         if not os.path.isdir(self.file_system.path+"/precise"):
             Repo.clone_from('https://github.com/MycroftAI/mycroft-precise', self.file_system.path+"/precise")
             self.log.info("Downloading precice source")
+        if not os.path.isfile(self.file_system.path+"nonesounds.7z"):
+            wget.download('http://downloads.tuxfamily.org/pdsounds/pdsounds_march2009.7z', self.file_system.path+"/nonesounds.7z")
         self.log.info("installing....")
         if self.settings.get("precice_pid)") is None:
             self.log.info("Starting installation")
@@ -114,11 +118,11 @@ class WakeWord(MycroftSkill):
                 time.sleep(1)
                 if not self.record_process or wait_while_speaking():
                     play_wav(self.piep)
-                    path = "none-wake-words/"+ self.lang + "-short/"
+                    path = "not-wake-words/"+ self.lang + "-short/"
                     if i == 2:
-                        path = "test/none-wake-words/"+ self.lang + "-short/"
+                        path = "test/not-wake-words/"+ self.lang + "-short/"
                     soundfile = "not"+ name + "-"+ self.lang +"."+str(uuid.uuid1())+".wav"
-                    #self.start_recording(name,i,path,soundfile)
+                    self.start_recording(name,i,path,soundfile)
                     i = i + 1
                     #if i == 5:
                         #if not self.ask_yesno("is.all.ok") == "yes":
@@ -201,8 +205,11 @@ class WakeWord(MycroftSkill):
             return False
 
     def calculating(self, name):
-        if self.settings.get("precice_calc_pid)") is None:
-            precice_calc = subprocess.Popen([self.file_system.path+'/precise/precise/scripts/train.py', name+'.net',
+        if self.settings.get("precice_calc_pid") is None:
+            if not os.isdir(self.settings["file_path"]+name+"not-wake-words/noises"):
+                ZipFile.extractall(self.file_system.path+"nonesounds.7z", self.settings["file_path"]+name+"not-wake-words/noises")
+            precice_calc = subprocess.Popen([self.file_system.path+'/precise/.venv/bin/python',
+                                        self.file_system.path+'/precise/precise/scripts/train.py', self.file_system.path+'/'+name+'.net',
                                         self.settings["file_path"]+'/'+name, '-e', str(600)],
                                         bufsize=-1, preexec_fn=os.setsid, shell=True)
             self.settings["precice_calc_pid"] = precice_calc.pid
