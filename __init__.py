@@ -61,19 +61,11 @@ class WakeWord(MycroftSkill):
         if not os.path.isfile(self.file_system.path+"/nonesounds.7z"):
             wget.download('http://downloads.tuxfamily.org/pdsounds/sounds/', self.file_system.path+"/nonesounds")
         self.log.info("installing....")
-        if self.settings.get("precice_pid)") is None:
-            self.log.info("Starting installation")
-            os.chmod(self.file_system.path + '/precise/setup.sh', 0o755)
-            precice_proc = subprocess.Popen(self.file_system.path+'/precise/setup.sh',
-                                         preexec_fn=os.setsid, shell=True)
-            self.settings["precice_pid"] = precice_proc.pid
-            return True
-        else:
-            return False
-        return True
-       # except Exception:
-        #    self.log.info("precice source not installed - something went wrong!")
-        #    return False
+        self.log.info("Starting installation")
+        os.chmod(self.file_system.path + '/precise/setup.sh', 0o755)
+        subprocess.call(self.file_system.path+'/precise/setup.sh',
+                        preexec_fn=os.setsid, shell=True)
+
 
     def has_free_disk_space(self):
         space = (30 * self.settings["channels"] *
@@ -211,18 +203,28 @@ class WakeWord(MycroftSkill):
             #with libfile.extract_file(self.file_system.path+"/nonesounds.7z", 'r') as zipObj:
              #   zipObj.extractall(self.settings["file_path"]+"/"+name+"/not-wake-words/noises")
             #ZipFile.extractall(self.file_system.path+"/nonesounds.7z", self.settings["file_path"]+"/"+name+"/not-wake-words/noises")
-        if self.settings.get("precice_calc_pid)") is None:
+        if self.settings.get("precise_calc_pid") is None:
             self.log.info("weiter")
             #if os.isdir(self.settings["file_path"]+name+"/not-wake-words"):
-            precice_calc = subprocess.Popen([self.file_system.path+"/precise/.venv/bin/python",
-                                        self.file_system.path+"/precise/precise/scripts/train.py", self.file_system.path+name+".net",
-                                        self.settings["file_path"]+"/"+name, "-e", str(600)],
+            precise_calc = subprocess.Popen([self.file_system.path+"/precise/.venv/bin/python "+
+                                        self.file_system.path+"/precise/precise/scripts/train.py "+
+                                        self.file_system.path+"/"+name+".net "+
+                                        self.settings["file_path"]+"/"+name+" -e "+ str(600)],
                                         bufsize=-1, preexec_fn=os.setsid, shell=True)
-            self.speak_dialog("end.calculating",
-                                data={"name": name})
+            self.settings["precise_calc_pid"] = precise_calc.pid
+            self.schedule_repeating_event(self.precise_check, None, 1,
+                                          name='PreciseCalc')
             return True
         else:
             return False
+        return True
+
+    def precise_check(self, name):
+        if not self.precise_calc:
+            self.cancel_scheduled_event('PreciseCalc')
+            self.speak_dialog("end.calculating",
+                            data={"name": name})
+
 
    # def config(self, name):
     #    from mycroft.configuration.config import (
