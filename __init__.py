@@ -203,15 +203,16 @@ class WakeWord(MycroftSkill):
             #with libfile.extract_file(self.file_system.path+"/nonesounds.7z", 'r') as zipObj:
              #   zipObj.extractall(self.settings["file_path"]+"/"+name+"/not-wake-words/noises")
             #ZipFile.extractall(self.file_system.path+"/nonesounds.7z", self.settings["file_path"]+"/"+name+"/not-wake-words/noises")
-        if self.settings.get("precise_calc_pid") is None:
-            self.log.info("weiter")
+        #self.log.info("pid:"+ precise_calc.pid)
+        if self.settings.get("precise_calc_pid)") is None:
+            #self.log.info("weiter"+precise_calc.pid)
             #if os.isdir(self.settings["file_path"]+name+"/not-wake-words"):
-            precise_calc = subprocess.Popen([self.file_system.path+"/precise/.venv/bin/python "+
+            self.precise_calc = subprocess.Popen([self.file_system.path+"/precise/.venv/bin/python "+
                                         self.file_system.path+"/precise/precise/scripts/train.py "+
                                         self.file_system.path+"/"+name+".net "+
                                         self.settings["file_path"]+"/"+name+" -e "+ str(600)],
                                         bufsize=-1, preexec_fn=os.setsid, shell=True)
-            self.settings["precise_calc_pid"] = precise_calc.pid
+            self.settings["precise_calc_pid"] = self.precise_calc.pid
             self.schedule_repeating_event(self.precise_check, None, 1,
                                           name='PreciseCalc')
             return True
