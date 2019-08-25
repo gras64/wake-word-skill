@@ -14,6 +14,8 @@ wakeword is only a few times spoken and bad detection sorted out. you could not 
 gras64
 ## functionality
 You say mycroft "I want to call you Christopher" and mycroft looks for a precise configuratios file. if under ./mycroft/precise and and in the skill folder no file is present starts learning. if there is a file, the configuration will be adjusted accordingly. You can also upgrade or upload your model at any time.
+### configration
+if you use Public Domain Sounds Backup it will take more then 1 GB Space on disk on installation. use it cairfuly!!!
 
 ## To Do
 * use of all operating systems an configurations
