@@ -2,13 +2,23 @@
 Just train a new wakeword
 
 ## About
-In order to train a new wakeword you have to have read very far in mycroft. in the endefekt but deas wakeword is only a few times spoken and bad detection sorted out. you could not do that through speech. i have thought about it but have too little idea to do it myself.
+wakeword is only a few times spoken and bad detection sorted out. you could not do that through speech. i have thought about it and make a skill.
 
 ## Examples
 * "I want to call you christopher"
 
+
+
 ## Credits
 gras64
+## functionality
+You say mycroft "I want to call you Christopher" and mycroft looks for a precise configuratios file. if under ./mycroft/precise and and in the skill folder no file is present starts learning. if there is a file, the configuration will be adjusted accordingly. You can also upgrade or upload your model at any time.
+
+## To Do
+*use of all operating systems an configurations
+*debug
+*upload to https://github.com/MycroftAI/Precise-Community-Data.git
+
 
 ## Category
 **Configuration**
