@@ -252,7 +252,7 @@ class WakeWord(MycroftSkill):
             return precise_file
         else:
             self.train_wake_word_intent(message)
-            return none
+            return None
             #precise_file = self.file_system.path+"/"+name+".pb"
             #return precise_file
 
@@ -270,7 +270,7 @@ class WakeWord(MycroftSkill):
           #  self.speak_dialog('listener.same', data={'listener': name})
          #   return
         precise_file = self.select_precise_file(name, message)
-        if precise_file == "none":
+        if precise_file == None:
             self.log.info("precise file "+name+" not found")
             return
         else:
