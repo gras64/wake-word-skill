@@ -1,5 +1,6 @@
 # <img src="https://raw.githack.com/FortAwesome/Font-Awesome/master/svgs/solid/robot.svg" card_color="#40DBB0" width="50" height="50" style="vertical-align:bottom"/> Wake Word
 Just train a new wakeword
+## !!!! caution first version many bugs
 
 ## About
 wakeword is only a few times spoken and bad detection sorted out. you could not do that through speech. i have thought about it and make a skill.
