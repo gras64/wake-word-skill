@@ -1,6 +1,13 @@
 name: Wake word
 skillMetadata:
   sections:
+    - name: Processing Settings
+      fields:
+        - name: soundbackup
+          type: checkbox
+          label: Use Public Domain Sounds Backup
+          value: "false"
+          placeholder: 1 GB Space for Public Domain Sounds Backup
     - name: Data upload to Precise-Community-Data
       fields:
         - name: upload
@@ -16,3 +23,13 @@ skillMetadata:
           type: number
           value: "15"
           label: Sell number off recordings on the device
+    - name: Git Settings vor Upload
+      fields:
+         - name: localgit
+           type: text
+           label: Git Username
+           value: ""
+         - name: gitpass
+           type: password
+           value: ""
+           label: Git Password
