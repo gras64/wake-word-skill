@@ -110,7 +110,7 @@ class WakeWord(MycroftSkill):
                     i = i + 1
                     if i == 13:
                         if not self.ask_yesno("is.all.ok") == "yes":
-                           i = 1
+                            i = 1
             wait_while_speaking()
             self.speak_dialog("none.wake.word")
             time.sleep(4)
@@ -130,7 +130,7 @@ class WakeWord(MycroftSkill):
                         if not self.ask_yesno("is.all.ok") == "yes":
                             i = 1
             self.speak_dialog("start.calculating")
-            self.calculating(name)
+            self.calculating_intent(name, message)
 
     def start_recording(self, name, i, path, soundfile):
         self.settings["duration"] = 3  # default recording duration
@@ -201,7 +201,7 @@ class WakeWord(MycroftSkill):
         else:
             return False
 
-    def calculating(self, name):
+    def calculating_intent(self, name, message):
         self.log.info("calculating")
         ########### To do Unzip and processing Open Sound backup
         #if self.settings["soundbackup"]:
@@ -219,27 +219,34 @@ class WakeWord(MycroftSkill):
                                     self.settings["file_path"]+"/"+name+" -e "+ str(600)],
                                     bufsize=-1, preexec_fn=os.setsid, shell=True)
         self.settings["precise_calc_pid"] = self.precise_calc.pid
-        self.schedule_repeating_event(self.precise_check(name), None, 1,
+        self.schedule_repeating_event(self.precise_check(name, message), None, 1,
                                           name='PreciseCalc')
         return True
 
-    def precise_check(self, name):
-        if not self.precise_calc and not self.precise_convert:
+    def precise_check(self, name, message):
+        self.log.info("precise: check for end calculation")
+        if self.precise_calc:
+            return
+        elif not self.precise_calc:
             self.cancel_scheduled_event('PreciseCalc')
+            if os.path.isfile(self.file_system.path+"/"+name+".net"):
+                self.precise_con(name, message)
+        elif not self.precise_convert:
             self.cancel_scheduled_event('PreciseConvert')
-            if not os.path.isfile(self.file_system.path+"/"+name+".test"):
-                self.precise_con(name)
-            else:
+            if not self.select_precise_file(name, message) is None:
                 self.speak_dialog("end.calculating",
                             data={"name": name})
-    def precise_con(self, name):
+                self.config(name, message) 
+
+    def precise_con(self, name, message):
+        self.log.info("precise: start convert to .pb")
         self.precise_convert = subprocess.Popen([self.file_system.path+"/precise/.venv/bin/python "+
                                     self.file_system.path+"/precise/precise/scripts/convert.py "+
                                     self.file_system.path+"/"+name+".net "+
                                     self.file_system.path+"/"],
                                     bufsize=-1, preexec_fn=os.setsid, shell=True)
         self.settings["precise_convert _pid"] = self.precise_convert.pid
-        self.schedule_repeating_event(self.precise_check(name), None, 1,
+        self.schedule_repeating_event(self.precise_check(name, message), None, 1,
                                           name='PreciseConvert')
         return True
 
