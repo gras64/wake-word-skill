@@ -19,6 +19,7 @@ You say mycroft "I want to call you Christopher" and mycroft looks for a precise
 * use of all operating systems an configurations
 * debug
 * upload to https://github.com/MycroftAI/Precise-Community-Data.git
+* use sounds from Public Domain Sounds Backup
 
 
 ## Category
