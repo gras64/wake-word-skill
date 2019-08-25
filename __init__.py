@@ -103,7 +103,7 @@ class WakeWord(MycroftSkill):
                 if not self.record_process or wait_while_speaking():
                     play_wav(self.piep)
                     path = "wake-word/"+ self.lang + "-short/"
-                    if i => 9:
+                    if i >= 9:
                         path = "test/wake-word/"+ self.lang + "-short/"
                     soundfile = name+ "-" + self.lang +"."+str(uuid.uuid1())+".wav"
                     self.start_recording(name,i,path,soundfile)
@@ -121,7 +121,7 @@ class WakeWord(MycroftSkill):
                 if not self.record_process or wait_while_speaking():
                     play_wav(self.piep)
                     path = "not-wake-word/"+ self.lang + "-short/"
-                    if i => 9:
+                    if i >= 9:
                         path = "test/not-wake-word/"+ self.lang + "-short/"
                     soundfile = "not"+name+"-"+ self.lang +"."+str(uuid.uuid1())+".wav"
                     self.start_recording(name,i,path,soundfile)
@@ -275,6 +275,7 @@ class WakeWord(MycroftSkill):
             return
         else:
             self.log.info("set precise file: "+precise_file)
+
         wake_word = name
         self.log.info("set precise WakeWord:"+name)
         new_config = { "wake_word": name, 'hotwords': {wake_word:
