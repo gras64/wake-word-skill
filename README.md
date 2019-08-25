@@ -15,9 +15,9 @@ gras64
 You say mycroft "I want to call you Christopher" and mycroft looks for a precise configuratios file. if under ./mycroft/precise and and in the skill folder no file is present starts learning. if there is a file, the configuration will be adjusted accordingly. You can also upgrade or upload your model at any time.
 
 ## To Do
-*use of all operating systems an configurations
-*debug
-*upload to https://github.com/MycroftAI/Precise-Community-Data.git
+* use of all operating systems an configurations
+* debug
+* upload to https://github.com/MycroftAI/Precise-Community-Data.git
 
 
 ## Category
