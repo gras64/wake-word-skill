@@ -17,6 +17,7 @@ from mycroft import MycroftSkill, intent_file_handler
 from mycroft.util import play_wav, resolve_resource_file
 from mycroft.util.time import now_local
 from mycroft.util.log import LOG, getLogger
+from mycroft.util.lang import get_primary_lang_code
 
 LOGGER = getLogger(__name__)
 
@@ -102,10 +103,10 @@ class WakeWord(MycroftSkill):
                 time.sleep(1)
                 if not self.record_process or wait_while_speaking():
                     play_wav(self.piep)
-                    path = "wake-word/"+ self.lang + "-short/"
+                    path = "wake-word/"+ self.lang[:2] + "-short/"
                     if i >= 9:
-                        path = "test/wake-word/"+ self.lang + "-short/"
-                    soundfile = name+ "-" + self.lang +"."+str(uuid.uuid1())+".wav"
+                        path = "test/wake-word/"+ self.lang[:2]+ "-short/"
+                    soundfile = name+ "-" + self.lang[:2] +"-"+str(uuid.uuid1())+".wav"
                     self.start_recording(name,i,path,soundfile)
                     i = i + 1
                     if i == 13:
@@ -120,10 +121,10 @@ class WakeWord(MycroftSkill):
                 time.sleep(1)
                 if not self.record_process or wait_while_speaking():
                     play_wav(self.piep)
-                    path = "not-wake-word/"+ self.lang + "-short/"
+                    path = "not-wake-word/"+ self.lang[:2] + "-short/"
                     if i >= 9:
-                        path = "test/not-wake-word/"+ self.lang + "-short/"
-                    soundfile = "not"+name+"-"+ self.lang +"."+str(uuid.uuid1())+".wav"
+                        path = "test/not-wake-word/"+ self.lang[:2] + "-short/"
+                    soundfile = "not"+name+"-"+ self.lang[:2] +"-"+str(uuid.uuid1())+".wav"
                     self.start_recording(name,i,path,soundfile)
                     i = i + 1
                     if i == 13:
@@ -217,26 +218,31 @@ class WakeWord(MycroftSkill):
                                     self.file_system.path+"/precise/precise/scripts/train.py "+
                                     self.file_system.path+"/"+name+".net "+
                                     self.settings["file_path"]+"/"+name+" -e "+ str(600)],
-                                    bufsize=-1, preexec_fn=os.setsid, shell=True)
-        self.settings["precise_calc_pid"] = self.precise_calc.pid
-        self.schedule_repeating_event(self.precise_check(name, message), None, 1,
-                                          name='PreciseCalc')
-        return True
+                                    preexec_fn=os.setsid, shell=True)
+        #self.settings["precise_calc_pid"] = self.precise_calc.pid
+        #self.schedule_repeating_event(self.precise_check(name, message, i = 1), None, 1,
+         #                                 name='PreciseCalc')
+        self.schedule_repeating_event(self.log.info("test schleife"), None, 1,
+                                          name='PreciseConvert')
+        #return True
 
-    def precise_check(self, name, message):
-        self.log.info("precise: check for end calculation")
-        if self.precise_calc:
-            return
-        elif not self.precise_calc:
+    def precise_check(self, name, message, i):
+        self.log.info("precise: check for end calculation "+str(i))
+        if not self.precise_calc:
             self.cancel_scheduled_event('PreciseCalc')
+            self.log.info("test3 "+ str(i) )
             if os.path.isfile(self.file_system.path+"/"+name+".net"):
                 self.precise_con(name, message)
-        elif not self.precise_convert:
-            self.cancel_scheduled_event('PreciseConvert')
-            if not self.select_precise_file(name, message) is None:
-                self.speak_dialog("end.calculating",
+                self.log.info("test2 "+ str(i) )
+        elif i == 2:
+            self.log.info("test "+ str(i) )
+            if not self.precise_convert:
+                self.cancel_scheduled_event('PreciseConvert')
+                if not self.select_precise_file(name, message) is None:
+                    i = 0
+                    self.speak_dialog("end.calculating",
                             data={"name": name})
-                self.config(name, message) 
+                    #self.config(name, message)
 
     def precise_con(self, name, message):
         self.log.info("precise: start convert to .pb")
@@ -245,8 +251,10 @@ class WakeWord(MycroftSkill):
                                     self.file_system.path+"/"+name+".net "+
                                     self.file_system.path+"/"],
                                     bufsize=-1, preexec_fn=os.setsid, shell=True)
-        self.settings["precise_convert _pid"] = self.precise_convert.pid
-        self.schedule_repeating_event(self.precise_check(name, message), None, 1,
+        #self.settings["precise_convert _pid"] = self.precise_convert.pid
+        #self.schedule_repeating_event(self.precise_check(name, message, i = 2), None, 1,
+         #                                 name='PreciseConvert')
+        self.schedule_repeating_event(self.log.info("test schleife"), None, 1,
                                           name='PreciseConvert')
         return True
 
