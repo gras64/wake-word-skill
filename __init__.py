@@ -83,6 +83,9 @@ class WakeWord(MycroftSkill):
         else:
             self.config(name, message)
 
+    def event(self):
+        self.log.info("test schleife")
+
     @intent_file_handler('train.wake.word.intent')
     def train_wake_word_intent(self, message):
         if message.data.get("name"):
@@ -109,9 +112,6 @@ class WakeWord(MycroftSkill):
                     soundfile = name+ "-" + self.lang[:2] +"-"+str(uuid.uuid1())+".wav"
                     self.start_recording(name,i,path,soundfile)
                     i = i + 1
-                    if i == 13:
-                        if not self.ask_yesno("is.all.ok") == "yes":
-                            i = 1
             wait_while_speaking()
             self.speak_dialog("none.wake.word")
             time.sleep(4)
@@ -127,9 +127,6 @@ class WakeWord(MycroftSkill):
                     soundfile = "not"+name+"-"+ self.lang[:2] +"-"+str(uuid.uuid1())+".wav"
                     self.start_recording(name,i,path,soundfile)
                     i = i + 1
-                    if i == 13:
-                        if not self.ask_yesno("is.all.ok") == "yes":
-                            i = 1
             self.speak_dialog("start.calculating")
             self.calculating_intent(name, message)
 
@@ -138,7 +135,6 @@ class WakeWord(MycroftSkill):
 
 
         if self.has_free_disk_space():
-            record_for = 3
                 # Initiate recording
             wait_while_speaking()
             self.start_time = now_local()   # recalc after speaking completes
@@ -204,6 +200,7 @@ class WakeWord(MycroftSkill):
 
     def calculating_intent(self, name, message):
         self.log.info("calculating")
+        self.settings["name"] = name
         ########### To do Unzip and processing Open Sound backup
         #if self.settings["soundbackup"]:
          #   if not os.path.isdir(self.settings["file_path"]+"/"+name+"/not-wake-word/noises"):
@@ -222,49 +219,52 @@ class WakeWord(MycroftSkill):
         #self.settings["precise_calc_pid"] = self.precise_calc.pid
         #self.schedule_repeating_event(self.precise_check(name, message, i = 1), None, 1,
          #                                 name='PreciseCalc')
-        self.schedule_repeating_event(self.log.info("test schleife"), None, 1,
-                                          name='PreciseConvert')
-        #return True
+        self.schedule_repeating_event(self.precise_calc_check, None, 3,
+                                      name='PreciseCalc')
+        return True
 
-    def precise_check(self, name, message, i):
-        self.log.info("precise: check for end calculation "+str(i))
-        if not self.precise_calc:
+    def precise_calc_check(self, message):
+        self.log.info("precise: check for end calculation ")
+        name = self.settings["name"]
+        if self.precise_calc.poll():
             self.cancel_scheduled_event('PreciseCalc')
-            self.log.info("test3 "+ str(i) )
-            if os.path.isfile(self.file_system.path+"/"+name+".net"):
+            if os.path.isfile(self.file_system.path+"/"+self.settings["name"]+".net"):
                 self.precise_con(name, message)
-                self.log.info("test2 "+ str(i) )
-        elif i == 2:
-            self.log.info("test "+ str(i) )
-            if not self.precise_convert:
-                self.cancel_scheduled_event('PreciseConvert')
-                if not self.select_precise_file(name, message) is None:
-                    i = 0
-                    self.speak_dialog("end.calculating",
-                            data={"name": name})
-                    #self.config(name, message)
+
+    def precise_con_check(self, message):
+        self.log.info("precise: check for end converting ")
+        name = self.settings["name"]
+        if self.precise_convert.poll():
+            self.cancel_scheduled_event('PreciseConvert')
+            if not self.select_precise_file is None:
+                self.speak_dialog("end.calculating",
+                        data={"name": self.settings["name"]})
+                self.config(name, message)
 
     def precise_con(self, name, message):
         self.log.info("precise: start convert to .pb")
         self.precise_convert = subprocess.Popen([self.file_system.path+"/precise/.venv/bin/python "+
-                                    self.file_system.path+"/precise/precise/scripts/convert.py "+
-                                    self.file_system.path+"/"+name+".net "+
-                                    self.file_system.path+"/"],
+                                    self.file_system.path+"/precise/precise/scripts/convert.py -o "+
+                                    self.file_system.path+"/"+name+".pb "+
+                                    self.file_system.path+"/"+name+".net "],
                                     bufsize=-1, preexec_fn=os.setsid, shell=True)
         #self.settings["precise_convert _pid"] = self.precise_convert.pid
         #self.schedule_repeating_event(self.precise_check(name, message, i = 2), None, 1,
          #                                 name='PreciseConvert')
-        self.schedule_repeating_event(self.log.info("test schleife"), None, 1,
-                                          name='PreciseConvert')
+        self.schedule_repeating_event(self.precise_con_check, None, 3,
+                                      name='PreciseConvert')
         return True
 
     def select_precise_file(self, name, message):
         if os.path.isfile(self.file_system.path+"/"+name+".pb"):
             precise_file = self.file_system.path+"/"+name+".pb"
             return precise_file
-        elif os.path.isfile("~/.mycroft/precise/"+name+".pb"):
-            precise_file = "~/.mycroft/precise/"+name+".pb"
+        elif resolve_resource_file("precise/"+name+".pb"):
+            precise_file = resolve_resource_file("precise/"+name+".pb")
             return precise_file
+        elif os.path.isfile(self.file_system.path+"/"+name+".net"):
+            self.precise_con(name, message)
+            return None
         else:
             self.train_wake_word_intent(message)
             return None
@@ -279,7 +279,6 @@ class WakeWord(MycroftSkill):
         )
         module = "precise".replace(' ', '')
         module = module.replace('default', 'pocketsphinx')
-        Name = module.replace('pocketsphinx', 'pocket sphinx')
 
         #if self.get_listener() == module:
           #  self.speak_dialog('listener.same', data={'listener': name})
