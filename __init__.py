@@ -8,6 +8,7 @@ import wget
 from shutil import rmtree
 from git import Repo
 from speech_recognition import Recognizer
+import py7zr
 
 from mycroft.client.speech.mic import MutableMicrophone
 from mycroft.filesystem import FileSystemAccess
@@ -43,6 +44,11 @@ class WakeWord(MycroftSkill):
         if not os.path.isdir(self.file_system.path + "/precise/mycroft_precise.egg-info"):
             self.log.info("no precise installed. beginn installation")
             self.install_precice_source()
+        if self.settings["soundbackup"] is True:
+            self.download_sounds()
+         ## Wait vor wakeword
+        #_wait_until_wake_word(source, sec_per_buffer):
+
 
     def record(self, file_path, duration, rate, channels):
         if duration > 0:
@@ -57,8 +63,6 @@ class WakeWord(MycroftSkill):
         if not os.path.isdir(self.file_system.path+"/precise"):
             Repo.clone_from('https://github.com/MycroftAI/mycroft-precise', self.file_system.path+"/precise")
             self.log.info("Downloading precice source")
-        if not os.path.isfile(self.file_system.path+"/nonesounds.7z"):
-            wget.download('http://downloads.tuxfamily.org/pdsounds/sounds/', self.file_system.path+"/nonesounds")
         self.log.info("installing....")
         self.log.info("Starting installation")
         os.chmod(self.file_system.path + '/precise/setup.sh', 0o755)
@@ -201,27 +205,39 @@ class WakeWord(MycroftSkill):
     def calculating_intent(self, name, message):
         self.log.info("calculating")
         self.settings["name"] = name
-        ########### To do Unzip and processing Open Sound backup
-        #if self.settings["soundbackup"]:
-         #   if not os.path.isdir(self.settings["file_path"]+"/"+name+"/not-wake-word/noises"):
-            # Create a ZipFile Object and load sample.zip in it
-            #with libfile.extract_file(self.file_system.path+"/nonesounds.7z", 'r') as zipObj:
-             #   zipObj.extractall(self.settings["file_path"]+"/"+name+"/not-wake-word/noises")
-            #ZipFile.extractall(self.file_system.path+"/nonesounds.7z", self.settings["file_path"]+"/"+name+"/not-wake-word/noises")
-        #self.log.info("pid:"+ precise_calc.pid)
-            #self.log.info("weiter"+precise_calc.pid)
-            #if os.isdir(self.settings["file_path"]+name+"/not-wake-word"):
-        self.precise_calc = subprocess.Popen([self.file_system.path+"/precise/.venv/bin/python "+
+        if self.download_sounds:
+            self.precise_calc = subprocess.Popen([self.file_system.path+"/precise/.venv/bin/python "+
                                     self.file_system.path+"/precise/precise/scripts/train.py "+
                                     self.file_system.path+"/"+name+".net "+
                                     self.settings["file_path"]+"/"+name+" -e "+ str(600)],
                                     preexec_fn=os.setsid, shell=True)
-        #self.settings["precise_calc_pid"] = self.precise_calc.pid
-        #self.schedule_repeating_event(self.precise_check(name, message, i = 1), None, 1,
-         #                                 name='PreciseCalc')
-        self.schedule_repeating_event(self.precise_calc_check, None, 3,
-                                      name='PreciseCalc')
-        return True
+            self.schedule_repeating_event(self.precise_calc_check, None, 3,
+                                          name='PreciseCalc')
+            return True
+
+    def download_sounds(self):
+        if self.settings["soundbackup"] is True:
+            name = self.settings["name"]
+            if not os.path.isfile(self.file_system.path+"/nonesounds.7z"):
+                self.log.info("downloading soundbackup")
+                wget.download('http://downloads.tuxfamily.org/pdsounds/pdsounds_march2009.7z', self.file_system.path+"/nonesounds.7z")
+            if not os.path.isdir(self.settings["file_path"]+"/"+name+"/not-wake-word/noises"):
+                if not os.path.isdir(self.file_system.path+"/noises"):
+                    os.makedirs(self.file_system.path+"/noises")
+                self.log.info("unzip soundbackup")
+                if not os.path.isdir(self.file_system.path+"/noises/mp3"):
+                    py7zr.unpack_7zarchive(self.file_system.path+"/nonesounds.7z", self.file_system.path+"/noises")
+                    self.log.info("download sucess, start convert")
+                for i in self.file_system.path+"/noises/mp3/*.mp3":
+                    self.soundbackup_convert = subprocess.Popen(["ffmpeg", "-i", i, "-acodec", "pcm_s16le", "-ar",
+                                                    "16000", "-ac", "1", "-f", "wav",
+                                                    self.file_system.path+"/noises/noises/"+i+".wav"],
+                                                    preexec_fn=os.setsid, shell=True)
+                    self.log.info("extratct: "+i)
+                os.link(self.file_system.path+"/noises/noises/", self.settings["file_path"]+"/"+name+"/not-wake-word/noises")
+        else:
+            return True
+
 
     def precise_calc_check(self, message):
         self.log.info("precise: check for end calculation ")
