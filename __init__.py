@@ -5,7 +5,7 @@ import subprocess
 import psutil as psutil
 import pyaudio
 import wget
-from shutil import rmtree
+from shutil import rmtree, move
 from git import Repo
 from speech_recognition import Recognizer
 import py7zr
@@ -36,7 +36,7 @@ class WakeWord(MycroftSkill):
         self.settings["rate"] = 16000 # sample rate, hertz
         self.settings["channels"] = 1  # recording channels (1 = mono)
         self.settings["file_path"] = self.file_system.path + "/data"
-        self.settings["sell_path"] = self.file_system.path + "/recordings"
+        self.settings["sell_path"] = "/tmp/mycroft_wake_words"
         self.settings["duration"] = -1  # default = unknown
         self.settings["formate"] = "S16_LE"
         self.upload = self.settings.get('upload') \
@@ -228,12 +228,17 @@ class WakeWord(MycroftSkill):
                 if not os.path.isdir(self.file_system.path+"/noises/mp3"):
                     py7zr.unpack_7zarchive(self.file_system.path+"/nonesounds.7z", self.file_system.path+"/noises")
                     self.log.info("download sucess, start convert")
-                for i in self.file_system.path+"/noises/mp3/*.mp3":
-                    self.soundbackup_convert = subprocess.Popen(["ffmpeg", "-i", i, "-acodec", "pcm_s16le", "-ar",
-                                                    "16000", "-ac", "1", "-f", "wav",
-                                                    self.file_system.path+"/noises/noises/"+i+".wav"],
-                                                    preexec_fn=os.setsid, shell=True)
-                    self.log.info("extratct: "+i)
+                for root, dirs, files in os.walk(self.file_system.path+"/noises/mp3/"):
+                    for f in files:
+                        filename = os.path.join(root, f)
+                        if filename.endswith('.mp3'):
+                            self.log.info("Filename: "+filename)
+                            if not os.path.isdir(self.file_system.path+"/noises/noises"):
+                                os.makedirs(self.file_system.path+"/noises/noises")
+                            self.soundbackup_convert = subprocess.Popen(["ffmpeg -i "+filename+" -acodec pcm_s16le -ar 16000 -ac 1 -f wav "+
+                                                            self.file_system.path+"/noises/noises/noises-"+str(uuid.uuid1())+".wav"],
+                                                            preexec_fn=os.setsid, shell=True)
+                    self.log.info("extratct: "+filename)
                 os.link(self.file_system.path+"/noises/noises/", self.settings["file_path"]+"/"+name+"/not-wake-word/noises")
         else:
             return True
@@ -264,9 +269,6 @@ class WakeWord(MycroftSkill):
                                     self.file_system.path+"/"+name+".pb "+
                                     self.file_system.path+"/"+name+".net "],
                                     bufsize=-1, preexec_fn=os.setsid, shell=True)
-        #self.settings["precise_convert _pid"] = self.precise_convert.pid
-        #self.schedule_repeating_event(self.precise_check(name, message, i = 2), None, 1,
-         #                                 name='PreciseConvert')
         self.schedule_repeating_event(self.precise_con_check, None, 3,
                                       name='PreciseConvert')
         return True
@@ -284,8 +286,6 @@ class WakeWord(MycroftSkill):
         else:
             self.train_wake_word_intent(message)
             return None
-            #precise_file = self.file_system.path+"/"+name+".pb"
-            #return precise_file
 
 
 
@@ -296,9 +296,6 @@ class WakeWord(MycroftSkill):
         module = "precise".replace(' ', '')
         module = module.replace('default', 'pocketsphinx')
 
-        #if self.get_listener() == module:
-          #  self.speak_dialog('listener.same', data={'listener': name})
-         #   return
         precise_file = self.select_precise_file(name, message)
         if precise_file == None:
             self.log.info("precise file "+name+" not found")
@@ -308,8 +305,8 @@ class WakeWord(MycroftSkill):
 
         wake_word = name
         self.log.info("set precise WakeWord:"+name)
-        new_config = { "wake_word": name, 'hotwords': {wake_word:
-                    {'module': module, 'threshold': "1e-90", 'lang': self.lang,"local_model_file": precise_file}}
+        new_config = {"listener": {"wake_word": name, "record_wake_words": "true"}, "hotwords": {wake_word:
+                     {"module": module, "threshold": "1e-90", "lang": self.lang,"local_model_file": precise_file}}
         }
         user_config = LocalConf(USER_CONFIG)
         user_config.merge(new_config)
@@ -325,8 +322,44 @@ class WakeWord(MycroftSkill):
 
         self.speak_dialog('end.calculating', data={'name': name})
 
+
+    @intent_file_handler('improve.intent')
+    def improve_intent(self, message):
+        from mycroft.configuration.config import (
+            Configuration
+        )
+        name = Configuration.get()['listener']['wake_word']
+        i = 1
+        onlyfiles = next(os.walk(self.settings["sell_path"]))[2]
+        if len(onlyfiles) <= int(self.settings["selling"]):
+            selling = len(onlyfiles) <= int(self.settings["selling"])
+        else:
+            selling = int(self.settings["selling"])
+        self.speak_dialog('improve', data={'name': name, "selling": selling})
+        for root, dirs, files in os.walk(self.file_system.path+"/noises/mp3/"):
+            for f in files:
+                    filename = os.path.join(root, f)
+                    if filename.endswith('.wav'):
+                        if i <= selling:
+                            i = i+1
+                            play_wav(filename)
+                            sell = self.ask_yesno("")
+                            if sell == "yes":
+                                self.shutil.move(filename, self.settings["file_path"]+"/"+name+"/wake-word/"+ self.lang[:2]+
+                                                "-short/"+name+ "-" + self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
+                            elif sell == "no":
+                                self.shutil.move(filename, self.settings["file_path"]+"/"+name+"not-wake-word/"+self.lang[:2]+
+                                                "-short/not"+name+"-"+ self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
+                            else:
+                                return
+                        else:
+                            return
+
+
+
     @intent_file_handler('upload.intent')
     def upload_intent(self, message):
+        from mycroft.configuration.config import Configuration
         if message.data.get("name"):
             name = message.data.get("name")
             name = name.replace(' ', '-')
