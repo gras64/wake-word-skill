@@ -5,7 +5,7 @@ import subprocess
 import psutil as psutil
 import pyaudio
 import wget
-from shutil import rmtree, move
+from shutil import rmtree
 from git import Repo
 from speech_recognition import Recognizer
 import py7zr
@@ -238,8 +238,9 @@ class WakeWord(MycroftSkill):
                             self.soundbackup_convert = subprocess.Popen(["ffmpeg -i "+filename+" -acodec pcm_s16le -ar 16000 -ac 1 -f wav "+
                                                             self.file_system.path+"/noises/noises/noises-"+str(uuid.uuid1())+".wav"],
                                                             preexec_fn=os.setsid, shell=True)
-                    self.log.info("extratct: "+filename)
-                os.link(self.file_system.path+"/noises/noises/", self.settings["file_path"]+"/"+name+"/not-wake-word/noises")
+                            self.log.info("extratct: "+filename)
+                self.log.info("Make Filelink")
+                os.symlink(self.file_system.path+"/noises/noises/", self.settings["file_path"]+"/"+name+"/not-wake-word/noises")
         else:
             return True
 
@@ -345,12 +346,13 @@ class WakeWord(MycroftSkill):
                             play_wav(filename)
                             sell = self.ask_yesno("")
                             if sell == "yes":
-                                self.shutil.move(filename, self.settings["file_path"]+"/"+name+"/wake-word/"+ self.lang[:2]+
+                                os.rename(filename, self.settings["file_path"]+"/"+name+"/wake-word/"+ self.lang[:2]+
                                                 "-short/"+name+ "-" + self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
                             elif sell == "no":
-                                self.shutil.move(filename, self.settings["file_path"]+"/"+name+"not-wake-word/"+self.lang[:2]+
+                                os.rename(filename, self.settings["file_path"]+"/"+name+"not-wake-word/"+self.lang[:2]+
                                                 "-short/not"+name+"-"+ self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
                             else:
+                                os.remove(filename)
                                 return
                         else:
                             return
@@ -365,8 +367,16 @@ class WakeWord(MycroftSkill):
             name = name.replace(' ', '-')
         else:
             name = Configuration.get()['listener']['wake_word']
-        self.upload = True
+        self.git_upload(name)
+        self.speak_dialog('download.started', data={"name": name})
 
+    def git_upload(self, name):
+        repo = Repo('https://github.com/MycroftAI/Precise-Community-Data.git')
+        if not os.path.isdir(self.file_system.path+"/Precise-Community-Data"):
+            Repo.clone_from('https://github.com/MycroftAI/Precise-Community-Data.git', self.file_system.path+"/Precise-Community-Data")
+        else:
+            origin = repo.remote('origin')
+            origin.push()
 
     def shutdown(self):
         super(WakeWord, self).shutdown()
