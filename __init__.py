@@ -8,17 +8,13 @@ import wget
 from shutil import rmtree
 from git import Repo
 from speech_recognition import Recognizer
-import py7zr
 
-from mycroft.client.speech.mic import MutableMicrophone
-from mycroft.filesystem import FileSystemAccess
 from mycroft.messagebus.message import Message
 from mycroft.audio import wait_while_speaking, is_speaking
 from mycroft import MycroftSkill, intent_file_handler
 from mycroft.util import play_wav, resolve_resource_file
 from mycroft.util.time import now_local
 from mycroft.util.log import LOG, getLogger
-from mycroft.util.lang import get_primary_lang_code
 
 LOGGER = getLogger(__name__)
 
@@ -31,7 +27,8 @@ class WakeWord(MycroftSkill):
         self.source_path = self.file_system.path
         self.piep = resolve_resource_file('snd/start_listening.wav')
 
-        self.settings["soundbackup"] = self.settings.get('soundbackup')
+        self.settings["soundbackup"] = self.settings.get('soundbackup') \
+            if self.settings.get('soundbackup') is not None else False
         self.settings["min_free_disk"] = 100  # min mb to leave free on disk
         self.settings["rate"] = 16000 # sample rate, hertz
         self.settings["channels"] = 1  # recording channels (1 = mono)
@@ -39,13 +36,18 @@ class WakeWord(MycroftSkill):
         self.settings["sell_path"] = "/tmp/mycroft_wake_words"
         self.settings["duration"] = -1  # default = unknown
         self.settings["formate"] = "S16_LE"
-        self.upload = self.settings.get('upload') \
-            if self.settings.get('upload') is not None else False
+        self.settings["selling"] = self.settings.get('selling', 15) \
+            if self.settings.get('selling') is not None else 15
+        self.settings["improve"] = 10
+        self.settings["savewakewords"] = self.settings.get('savewakewords', False) \
+            if self.settings.get('savewakewords') is not None else False
         if not os.path.isdir(self.file_system.path + "/precise/mycroft_precise.egg-info"):
             self.log.info("no precise installed. beginn installation")
             self.install_precice_source()
         if self.settings["soundbackup"] is True:
             self.download_sounds()
+        self.save_wakewords()
+
          ## Wait vor wakeword
         #_wait_until_wake_word(source, sec_per_buffer):
 
@@ -65,9 +67,17 @@ class WakeWord(MycroftSkill):
             self.log.info("Downloading precice source")
         self.log.info("installing....")
         self.log.info("Starting installation")
+        platform = self.config_core.get('enclosure', {}).get('platform')
         os.chmod(self.file_system.path + '/precise/setup.sh', 0o755)
         subprocess.call(self.file_system.path+'/precise/setup.sh',
                         preexec_fn=os.setsid, shell=True)
+        #### TO DO
+        ### dirty solution for fail on my raspberry
+        if platform == "picroft":
+                subprocess.call([self.file_system.path+"/precise/.venv/bin/python pip install tensorflow==1.10"],
+                                    preexec_fn=os.setsid, shell=True)
+        self.log.info("end installation")
+
 
 
     def has_free_disk_space(self):
@@ -217,6 +227,7 @@ class WakeWord(MycroftSkill):
 
     def download_sounds(self):
         if self.settings["soundbackup"] is True:
+            import py7zr
             name = self.settings["name"]
             if not os.path.isfile(self.file_system.path+"/nonesounds.7z"):
                 self.log.info("downloading soundbackup")
@@ -304,59 +315,66 @@ class WakeWord(MycroftSkill):
         else:
             self.log.info("set precise file: "+precise_file)
 
-        wake_word = name
-        self.log.info("set precise WakeWord:"+name)
-        new_config = {"listener": {"wake_word": name, "record_wake_words": "true"}, "hotwords": {wake_word:
-                     {"module": module, "threshold": "1e-90", "lang": self.lang,"local_model_file": precise_file}}
-        }
-        user_config = LocalConf(USER_CONFIG)
-        user_config.merge(new_config)
-        user_config.store()
+            wake_word = name
+            self.log.info("set precise WakeWord:"+name)
+            new_config = {"listener": {"wake_word": name, "record_wake_words": "true"}, "hotwords": {wake_word:
+                        {"module": module, "threshold": "1e-90", "lang": self.lang,"local_model_file": precise_file}}
+            }
+            user_config = LocalConf(USER_CONFIG)
+            user_config.merge(new_config)
+            user_config.store()
 
-        self.bus.emit(Message('configuration.updated'))
+            self.bus.emit(Message('configuration.updated'))
 
-        if module == 'precise':
-            engine_folder = expanduser('~/.mycroft/precise/precise-engine')
-            if not os.path.isdir(engine_folder):
-                self.speak_dialog('download.started')
-                return
+            if module == 'precise':
+                engine_folder = expanduser('~/.mycroft/precise/precise-engine')
+                if not os.path.isdir(engine_folder):
+                    self.speak_dialog('download.started')
+                    return
 
-        self.speak_dialog('end.calculating', data={'name': name})
+            self.speak_dialog('end.calculating', data={'name': name})
 
 
     @intent_file_handler('improve.intent')
     def improve_intent(self, message):
-        from mycroft.configuration.config import (
-            Configuration
-        )
-        name = Configuration.get()['listener']['wake_word']
+        name = self.config_core.get('listener', {}).get('wake_word')
+        name = name.replace(' ', '-')
         i = 1
         onlyfiles = next(os.walk(self.settings["sell_path"]))[2]
-        if len(onlyfiles) <= int(self.settings["selling"]):
-            selling = len(onlyfiles) <= int(self.settings["selling"])
+        if len(onlyfiles) <= self.settings["improve"]:
+            selling = len(onlyfiles)
         else:
-            selling = int(self.settings["selling"])
+            selling = self.settings["improve"]
         if os.path.isdir(self.settings["sell_path"]):
             self.speak_dialog('improve', data={'name': name, "selling": selling})
+            self.log.info("search wake word in: "+self.settings["sell_path"])
             for root, dirs, files in os.walk(self.settings["sell_path"]):
                 for f in files:
                     filename = os.path.join(root, f)
                     if filename.endswith('.wav'):
                         if i <= selling:
-                            i = i+1
+                            self.log.info("play file")
                             play_wav(filename)
-                            sell = self.ask_yesno("")
+                            sell = self.ask_yesno("ask.sell", data={'i': i})
+                            i = i+1
                             if sell == "yes":
-                                os.rename(filename, self.settings["file_path"]+"/"+name+"/wake-word/"+ self.lang[:2]+
-                                                "-short/"+name+ "-" + self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
+                                if not os.path.isdir(self.settings["file_path"]+"/"+name+"/wake-word/"+self.lang[:2]+"-short/"):
+                                    os.makedirs(self.settings["file_path"]+"/"+name+"/wake-word/"+self.lang[:2]+"-short/")
+                                file = (self.settings["file_path"]+"/"+name+"/wake-word/"+self.lang[:2]+
+                                         "-short/"+name+"-"+self.lang[:2]+"-"+str(uuid.uuid1())+".wav")
+                                os.rename(filename, file)
+                                self.log.info("move File: "+file)
                             elif sell == "no":
-                                os.rename(filename, self.settings["file_path"]+"/"+name+"not-wake-word/"+self.lang[:2]+
-                                                "-short/not"+name+"-"+ self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
+                                if not os.path.isdir(self.settings["file_path"]+"/"+name+"not-/wake-word/"+self.lang[:2]+"-short-not/"):
+                                    os.makedirs(self.settings["file_path"]+"/"+name+"not-/wake-word/"+self.lang[:2]+"-short-not/")
+                                file = (self.settings["file_path"]+"/"+name+"not-wake-word/"+self.lang[:2]+
+                                         "-short-not/"+name+"-"+self.lang[:2]+"-"+str(uuid.uuid1())+".wav")
+                                os.rename(filename, file)
+                                self.log.info("move File: "+file)
                             else:
                                 os.remove(filename)
-                                return
-                        else:
-                            return
+                else:
+                    self.speak_dialog('improve.no.file', data={'name': name})
         else:
             self.speak_dialog('improve.no.file', data={'name': name})
 
@@ -364,22 +382,48 @@ class WakeWord(MycroftSkill):
 
     @intent_file_handler('upload.intent')
     def upload_intent(self, message):
-        from mycroft.configuration.config import Configuration
         if message.data.get("name"):
             name = message.data.get("name")
             name = name.replace(' ', '-')
         else:
-            name = Configuration.get()['listener']['wake_word']
+            name = self.config_core.get('listener', {}).get('wake_word')
         self.git_upload(name)
-        self.speak_dialog('download.started', data={"name": name})
 
     def git_upload(self, name):
-        repo = Repo('https://github.com/MycroftAI/Precise-Community-Data.git')
+        repo = Repo(self.file_system.path+"/Precise-Community-Data")
         if not os.path.isdir(self.file_system.path+"/Precise-Community-Data"):
+            self.log.info("Downloading Precise Comunity Data")
             Repo.clone_from('https://github.com/MycroftAI/Precise-Community-Data.git', self.file_system.path+"/Precise-Community-Data")
         else:
             origin = repo.remote('origin')
-            origin.push()
+            origin.pull()
+
+    def save_wakewords(self):
+        from mycroft.configuration.config import (
+            LocalConf, USER_CONFIG, Configuration
+        )
+
+        self.settings["savewakewords"] = self.settings.get('savewakewords', False)
+        record = Configuration.get()['listener']['record_wake_words']
+        self.log.info("savewakeword: "+str(self.settings["savewakewords"]))
+        if self.settings["savewakewords"] is True:
+            onlyfiles = next(os.walk(self.settings["sell_path"]))[2]
+            if len(onlyfiles) >= self.settings["selling"]:
+                self.log.info("max recording")
+                self.settings["savewakewords"] = False
+            if record == "false":
+                new_config = {"listener": {"record_wake_words": "true"}}
+                self.log.info("set wake word recording")
+                user_config = LocalConf(USER_CONFIG)
+                user_config.merge(new_config)
+                user_config.store()
+        else:
+            if record == "true":
+                new_config = {"listener": {"record_wake_words": "false"}}
+                self.log.info("unset wake word recording")
+                user_config = LocalConf(USER_CONFIG)
+                user_config.merge(new_config)
+                user_config.store()
 
     def shutdown(self):
         super(WakeWord, self).shutdown()
@@ -387,4 +431,3 @@ class WakeWord(MycroftSkill):
 
 def create_skill():
     return WakeWord()
-

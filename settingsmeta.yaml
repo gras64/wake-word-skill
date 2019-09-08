@@ -10,9 +10,9 @@ skillMetadata:
           placeholder: 1 GB Space for Public Domain Sounds Backup
     - name: Data upload to Precise-Community-Data
       fields:
-        - name: upload
+        - name: savewakewords
           type: checkbox
-          label: upload aktiv
+          label: save wakewords
           value: "false"
           placeholder: demo prompt in the input box
         - name: repo
@@ -22,7 +22,7 @@ skillMetadata:
         - name: selling
           type: number
           value: "15"
-          label: Sell number off recordings on the device
+          label: Sell wake word numbers
     - name: Git Settings vor Upload
       fields:
          - name: localgit
