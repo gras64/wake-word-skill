@@ -336,9 +336,10 @@ class WakeWord(MycroftSkill):
             selling = len(onlyfiles) <= int(self.settings["selling"])
         else:
             selling = int(self.settings["selling"])
-        self.speak_dialog('improve', data={'name': name, "selling": selling})
-        for root, dirs, files in os.walk(self.file_system.path+"/noises/mp3/"):
-            for f in files:
+        if os.path.isdir(self.settings["sell_path"]):
+            self.speak_dialog('improve', data={'name': name, "selling": selling})
+            for root, dirs, files in os.walk(self.settings["sell_path"]):
+                for f in files:
                     filename = os.path.join(root, f)
                     if filename.endswith('.wav'):
                         if i <= selling:
@@ -356,6 +357,8 @@ class WakeWord(MycroftSkill):
                                 return
                         else:
                             return
+        else:
+            self.speak_dialog('improve.no.file', data={'name': name})
 
 
 
