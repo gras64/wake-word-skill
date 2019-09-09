@@ -410,12 +410,12 @@ class WakeWord(MycroftSkill):
         record = Configuration.get()['listener']['record_wake_words']
         self.log.info("settings get: "+str(self.settings.get('savewakewords')))
         self.log.info("savewakeword: "+str(self.settings["savewakewords"]))
-        if not self.settings["savewakewords"] is True:
+        if self.settings["savewakewords"] is True:
             free_mb = psutil.disk_usage('/')[2] / 1024 / 1024
             self.log.info("free mb: "+str(free_mb))
             if free_mb <= self.settings["min_free_disk"]:
                 self.log.info("no space: deactivate recording")
-                #self.settings["savewakewords"] = False
+                self.settings["savewakewords"] = False
             #if os.path.isdir(self.settings["sell_path"]):
                 #onlyfiles = next(os.walk(self.settings["sell_path"]))[2]
                 #if len(onlyfiles) >= self.settings["selling"]:
