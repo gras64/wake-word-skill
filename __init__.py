@@ -44,7 +44,7 @@ class WakeWord(MycroftSkill):
         self.settings['savewakewords'] = self.settings.get('savewakewords', False)
         if not os.path.isdir(self.file_system.path + "/precise/mycroft_precise.egg-info"):
             self.log.info("no precise installed. beginn installation")
-            self.install_precice_source()
+            self.install_precise_source()
         if self.settings["soundbackup"] is True:
             self.download_sounds()
         self.save_wakewords()
@@ -62,25 +62,27 @@ class WakeWord(MycroftSkill):
             return subprocess.Popen(
                 ["arecord", "-r", str(rate), "-c", str(channels), "-f", str(self.settings["formate"]), file_path])
 
-    def install_precice_source(self):
+    @intent_file_handler('install.precise.source.intent')
+    def install_presice_source(self):
         if not os.path.isdir(self.file_system.path+"/precise"):
             self.speak_dialog("download.started")
-            Repo.clone_from('https://github.com/MycroftAI/mycroft-precise', self.file_system.path+"/precise")
             self.log.info("Downloading precice source")
-            self.log.info("installing....")
-            self.log.info("Starting installation")
-            platform = self.config_core.get('enclosure', {}).get('platform')
-            os.chmod(self.file_system.path + '/precise/setup.sh', 0o755)
-            subprocess.call(self.file_system.path+'/precise/setup.sh',
+            Repo.clone_from('https://github.com/MycroftAI/mycroft-precise', self.file_system.path+"/precise")
+        #else:
+         #   Repo.pull('https://github.com/MycroftAI/mycroft-precise', self.file_system.path+"/precise")
+        self.log.info("Starting installation")
+        platform = self.config_core.get('enclosure', {}).get('platform')
+        os.chmod(self.file_system.path + '/precise/setup.sh', 0o755)
+        subprocess.call(self.file_system.path+'/precise/setup.sh',
                         preexec_fn=os.setsid, shell=True)
         #### TO DO
         ### dirty solution for fail on my raspberry
-            if platform == "picroft":
-                subprocess.call([self.file_system.path+"/precise/.venv/bin/python pip install tensorflow==1.10"],
-                                    preexec_fn=os.setsid, shell=True)
+        if platform == "picroft":
+            subprocess.call([self.file_system.path+"/precise/.venv/bin/python -m pip install tensorflow==1.10.1"],
+                                preexec_fn=os.setsid, shell=True)
 
-            self.log.info("end installation")
-            self.speak_dialog("installed.OK")
+        self.log.info("end installation")
+        self.speak_dialog("installed.OK")
 
 
     def has_free_disk_space(self):
@@ -171,7 +173,6 @@ class WakeWord(MycroftSkill):
         if not self.record_process:
             self.end_recording()
             return
-
         # Verify there is still adequate disk space to continue recording
         if self.record_process.poll() is None:
             if not self.has_free_disk_space():
