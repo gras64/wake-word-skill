@@ -3,6 +3,7 @@
     - fitipy==0.1.2
     - libarchive
     - py7zr
+    - wget
 
   system:
     all: python3-pip libopenblas-dev python3-scipy cython libhdf5-dev python3-h5py portaudio19-dev ffmpeg

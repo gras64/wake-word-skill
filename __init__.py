@@ -22,6 +22,8 @@ LOGGER = getLogger(__name__)
 class WakeWord(MycroftSkill):
     def __init__(self):
         MycroftSkill.__init__(self)
+
+    def initialize(self):
         self.record_process = None
         self.start_time = 0
         self.last_index = 24  # index of last pixel in countdowns
@@ -29,8 +31,7 @@ class WakeWord(MycroftSkill):
         self.piep = resolve_resource_file('snd/start_listening.wav')
 
         self.settings["name"] = self.config_core.get('listener', {}).get('wake_word').replace(' ', '-')
-        self.settings["soundbackup"] = self.settings.get('soundbackup') \
-            if self.settings.get('soundbackup') is not None else False
+        self.settings["soundbackup"] = self.settings.get('soundbackup', False)
         self.settings["min_free_disk"] = 100  # min mb to leave free on disk
         self.settings["rate"] = 16000 # sample rate, hertz
         self.settings["channels"] = 1  # recording channels (1 = mono)
@@ -38,12 +39,9 @@ class WakeWord(MycroftSkill):
         self.settings["sell_path"] = "/tmp/mycroft_wake_words"
         self.settings["duration"] = -1  # default = unknown
         self.settings["formate"] = "S16_LE"
-        self.settings["selling"] = self.settings.get('selling', 15) \
-            if self.settings.get('selling') is not None else 15
+        self.settings["selling"] = self.settings.get('selling', 15)
         self.settings["improve"] = 10
-        self.settings['savewakewords'] = self.settings.get('savewakewords') #\
-           # if self.settings.get('savewakewords') is not None else False
-        self.log.info("settings get: "+str(self.settings.get('savewakewords')))
+        self.settings['savewakewords'] = self.settings.get('savewakewords', False)
         if not os.path.isdir(self.file_system.path + "/precise/mycroft_precise.egg-info"):
             self.log.info("no precise installed. beginn installation")
             self.install_precice_source()
@@ -425,7 +423,7 @@ class WakeWord(MycroftSkill):
                 user_config = LocalConf(USER_CONFIG)
                 user_config.merge(new_config)
                 user_config.store()
-                self.settings.update
+                self.bus.emit(Message('configuration.updated'))
         else:
             if record == "true":
                 new_config = {"listener": {"record_wake_words": "false"}}
@@ -433,7 +431,7 @@ class WakeWord(MycroftSkill):
                 user_config = LocalConf(USER_CONFIG)
                 user_config.merge(new_config)
                 user_config.store()
-                self.settings.update
+                self.bus.emit(Message('configuration.updated'))
 
 
     def shutdown(self):
