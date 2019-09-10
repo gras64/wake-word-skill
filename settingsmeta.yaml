@@ -3,6 +3,8 @@ skillMetadata:
   sections:
     - name: Processing Settings
       fields:
+        - type: label
+          label: cairfull this setting take 1 GB Space on disk and take some time to convert mp3 to wav.
         - name: soundbackup
           type: checkbox
           label: Use Public Domain Sounds Backup

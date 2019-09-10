@@ -9,6 +9,7 @@ from shutil import rmtree
 from git import Repo
 from speech_recognition import Recognizer
 
+from mycroft.filesystem import FileSystemAccess
 from mycroft.messagebus.message import Message
 from mycroft.audio import wait_while_speaking, is_speaking
 from mycroft import MycroftSkill, intent_file_handler
@@ -40,8 +41,9 @@ class WakeWord(MycroftSkill):
         self.settings["selling"] = self.settings.get('selling', 15) \
             if self.settings.get('selling') is not None else 15
         self.settings["improve"] = 10
-        self.settings["savewakewords"] = self.settings.get('savewakewords') \
-            if self.settings.get('savewakewords') is not None else False
+        self.settings['savewakewords'] = self.settings.get('savewakewords') #\
+           # if self.settings.get('savewakewords') is not None else False
+        self.log.info("settings get: "+str(self.settings.get('savewakewords')))
         if not os.path.isdir(self.file_system.path + "/precise/mycroft_precise.egg-info"):
             self.log.info("no precise installed. beginn installation")
             self.install_precice_source()
@@ -237,22 +239,25 @@ class WakeWord(MycroftSkill):
             if not os.path.isdir(self.settings["file_path"]+"/"+name+"/not-wake-word/noises"):
                 if not os.path.isdir(self.file_system.path+"/noises"):
                     os.makedirs(self.file_system.path+"/noises")
-                self.log.info("unzip soundbackup")
                 if not os.path.isdir(self.file_system.path+"/noises/mp3"):
+                    self.log.info("unzip soundbackup")
                     py7zr.unpack_7zarchive(self.file_system.path+"/nonesounds.7z", self.file_system.path+"/noises")
                     self.log.info("download sucess, start convert")
-                for root, files in os.walk(self.file_system.path+"/noises/mp3/"):
-                    for f in files:
-                        filename = os.path.join(root, f)
-                        if filename.endswith('.mp3'):
-                            self.log.info("Filename: "+filename)
-                            if not os.path.isdir(self.file_system.path+"/noises/noises"):
-                                os.makedirs(self.file_system.path+"/noises/noises")
-                            self.soundbackup_convert = subprocess.Popen(["ffmpeg -i "+filename+" -acodec pcm_s16le -ar 16000 -ac 1 -f wav "+
-                                                            self.file_system.path+"/noises/noises/noises-"+str(uuid.uuid1())+".wav"],
-                                                            preexec_fn=os.setsid, shell=True)
-                            self.log.info("extratct: "+filename)
-                self.log.info("Make Filelink")
+                if not os.path.isdir(self.file_system.path+"/noises/noises"):
+                    for root, dirs, files in os.walk(self.file_system.path+"/noises/mp3/"):
+                        for f in files:
+                            filename = os.path.join(root, f)
+                            if filename.endswith('.mp3'):
+                                self.log.info("Filename: "+filename)
+                                if not os.path.isdir(self.file_system.path+"/noises/noises"):
+                                    os.makedirs(self.file_system.path+"/noises/noises")
+                                self.soundbackup_convert = subprocess.Popen(["ffmpeg -i "+filename+" -acodec pcm_s16le -ar 16000 -ac 1 -f wav "+
+                                                                self.file_system.path+"/noises/noises/noises-"+str(uuid.uuid1())+".wav"],
+                                                                preexec_fn=os.setsid, shell=True)
+                                self.log.info("extratct: "+filename)
+                    self.log.info("Make Filelink")
+                if not os.path.isdir(self.settings["file_path"]+"/"+name+"/not-wake-word"):
+                    os.makedirs(self.settings["file_path"]+"/"+name+"/not-wake-word")
                 os.symlink(self.file_system.path+"/noises/noises/", self.settings["file_path"]+"/"+name+"/not-wake-word/noises")
         else:
             return True
@@ -349,7 +354,7 @@ class WakeWord(MycroftSkill):
                 selling = self.settings["improve"]
             self.speak_dialog('improve', data={'name': name, "selling": selling})
             self.log.info("search wake word in: "+self.settings["sell_path"])
-            for root, files in os.walk(self.settings["sell_path"]):
+            for root, dirs, files in os.walk(self.settings["sell_path"]):
                 for f in files:
                     filename = os.path.join(root, f)
                     if filename.endswith('.wav'):
@@ -405,28 +410,22 @@ class WakeWord(MycroftSkill):
         from mycroft.configuration.config import (
             LocalConf, USER_CONFIG, Configuration
         )
-
-        self.settings["savewakewords"] = self.settings.get('savewakewords')
         record = Configuration.get()['listener']['record_wake_words']
-        self.log.info("settings get: "+str(self.settings.get('savewakewords')))
-        self.log.info("savewakeword: "+str(self.settings["savewakewords"]))
         if self.settings["savewakewords"] is True:
             free_mb = psutil.disk_usage('/')[2] / 1024 / 1024
-            self.log.info("free mb: "+str(free_mb))
             if free_mb <= self.settings["min_free_disk"]:
                 self.log.info("no space: deactivate recording")
-                self.settings["savewakewords"] = False
-            #if os.path.isdir(self.settings["sell_path"]):
-                #onlyfiles = next(os.walk(self.settings["sell_path"]))[2]
-                #if len(onlyfiles) >= self.settings["selling"]:
-                 #   self.log.info("max recording")
-                 #
+                new_config = {"listener": {"record_wake_words": "true"}}
+                user_config = LocalConf(USER_CONFIG)
+                user_config.merge(new_config)
+                user_config.store()
             if record == "false":
                 new_config = {"listener": {"record_wake_words": "true"}}
                 self.log.info("set wake word recording")
                 user_config = LocalConf(USER_CONFIG)
                 user_config.merge(new_config)
                 user_config.store()
+                self.settings.update
         else:
             if record == "true":
                 new_config = {"listener": {"record_wake_words": "false"}}
@@ -434,9 +433,12 @@ class WakeWord(MycroftSkill):
                 user_config = LocalConf(USER_CONFIG)
                 user_config.merge(new_config)
                 user_config.store()
+                self.settings.update
+
 
     def shutdown(self):
         super(WakeWord, self).shutdown()
+        self.settings.update
 
 
 def create_skill():
