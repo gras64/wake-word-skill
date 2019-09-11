@@ -31,6 +31,10 @@ skillMetadata:
            type: text
            label: Git Username
            value: ""
+         - name: gitmail
+           type: text
+           label: Git e-mail
+           value: ""
          - name: gitpass
            type: password
            value: ""

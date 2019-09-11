@@ -6,7 +6,10 @@ import psutil as psutil
 import pyaudio
 import wget
 import _thread
-from shutil import rmtree
+import py7zr
+import tarfile
+import linecache
+import shutil
 from git import Repo
 from speech_recognition import Recognizer
 
@@ -64,7 +67,7 @@ class WakeWord(MycroftSkill):
                 ["arecord", "-r", str(rate), "-c", str(channels), "-f", str(self.settings["formate"]), file_path])
 
     @intent_file_handler('install.precise.source.intent')
-    def install_presice_source(self):
+    def install_precise_source(self):
         if not os.path.isdir(self.file_system.path+"/precise"):
             self.speak_dialog("download.started")
             self.log.info("Downloading precice source")
@@ -312,12 +315,12 @@ class WakeWord(MycroftSkill):
         if os.path.isfile(self.file_system.path+"/"+name+".pb"):
             precise_file = self.file_system.path+"/"+name+".pb"
             return precise_file
-        elif resolve_resource_file("precise/"+name+".pb"):
-            precise_file = resolve_resource_file("precise/"+name+".pb")
-            return precise_file
         elif os.path.isfile(self.file_system.path+"/"+name+".net"):
             self.precise_con(name, message)
             return None
+        elif resolve_resource_file("precise/"+name+".pb"):
+            precise_file = resolve_resource_file("precise/"+name+".pb")
+            return precise_file
         else:
             self.train_wake_word_intent(message)
             return None
@@ -383,7 +386,7 @@ class WakeWord(MycroftSkill):
                             if sell == "yes":
                                 path = self.settings["file_path"]+"/"+name+"/wake-word/"+self.lang[:2]+"-short/"
                             elif sell == "no":
-                                path = self.settings["file_path"]+"/"+name+"not-wake-word/"+self.lang[:2]+"-short-not/"
+                                path = self.settings["file_path"]+"/"+name+"/not-wake-word/"+self.lang[:2]+"-short-not/"
                             if not path is None:
                                 os.makedirs(path)
                                 file = path+name+"-"+self.lang[:2]+"-"+str(uuid.uuid1())+".wav"
@@ -406,23 +409,55 @@ class WakeWord(MycroftSkill):
         else:
             name = self.config_core.get('listener', {}).get('wake_word')
         if os.path.isfile(self.file_system.path+"/"+name+".pb"):
+            self.git_download(name)
+            self.prepaire_repo(name)
+            self.git_upload(name)
+        elif os.path.isfile(self.file_system.path+"/"+name+".net"):
+            self.precise_con(name, message)
+            self.git_download(name)
+            self.prepaire_repo(name)
             self.git_upload(name)
         else:
-            self.speak.dalog("no.file")
+            self.log.info("no precise file for: "+name)
+            self.speak_dialog("no.file")
 
-    def git_upload(self, name):
+    def git_download(self, name):
         repo = Repo(self.file_system.path+"/Precise-Community-Data")
         repo.config_writer().set_value("user", "name", self.settings.get('localgit')).release()
-        repo.config_writer().set_value("user", "email", self.settings.get('localgit')).release()
+        repo.config_writer().set_value("user", "email", self.settings.get('gitmail')).release()
         if not os.path.isdir(self.file_system.path+"/Precise-Community-Data"):
             self.log.info("Downloading Precise Comunity Data")
             Repo.clone_from('https://github.com/MycroftAI/Precise-Community-Data.git', self.file_system.path+"/Precise-Community-Data")
         else:
+            self.log.info("pull Precise Comunity Data")
             origin = repo.remote('origin')
             origin.pull()
 
     def prepaire_repo(self, name):
-        self.log.info("make repo ready vor uploade")
+        name = name.replace('-', '').replace(' ', '')
+        ##### Model Files
+        self.log.info("make repo ready vor upload")
+        precisefolder = self.file_system.path+"/Precise-Community-Data"
+        presiceversion = linecache.getline(self.file_system.path + "/precise/mycroft_precise.egg-info/PKG-INFO", 3).replace('Version: ', '')[:5]
+        if not os.path.isdir(precisefolder+"/"+name+"/models/"):
+            os.makedirs(precisefolder+"/"+name+"/models/")
+        tar = tarfile.open(precisefolder+"/"+name+"/models/"+name+"-"+self.lang[:3]+presiceversion+"-"+
+                            time.strftime("%Y%m%d")+"-"+self.settings.get('localgit')+".tar.gz", "w:gz")
+        for name in [self.file_system.path+"/"+name+".pb", self.file_system.path+"/"+name+".pbtxt",
+                    self.file_system.path+"/"+name+".pb.params"]:
+            tar.add(name)
+        ###### licenses
+        licensefile = precisefolder+"/licenses/licenses-"+time.strftime("%Y%m%d")+"-"+self.settings.get('localgit')+".txt"
+        shutil.copy(precisefolder+"/licenses/license-template.txt", licensefile)
+        open(licensefile, "r").replace('I, [author name]', 'I, '+self.settings.get('localgit')+
+            ' (https://github.com/'+self.settings.get('localgit')+')')
+        
+        
+        #shutil.copytree(self.settings["file_path"]+"/"+name+"/wake-word/"+self.lang[:2]+"-short/", precisefolder)
+
+
+    def git_upload(self,name):
+        self.speak_dialog("upload.success", data={'name': name})
 
     def save_wakewords(self):
         from mycroft.configuration.config import (
