@@ -5,6 +5,7 @@ import subprocess
 import psutil as psutil
 import pyaudio
 import wget
+import _thread
 from shutil import rmtree
 from git import Repo
 from speech_recognition import Recognizer
@@ -44,9 +45,9 @@ class WakeWord(MycroftSkill):
         self.settings['savewakewords'] = self.settings.get('savewakewords', False)
         if not os.path.isdir(self.file_system.path + "/precise/mycroft_precise.egg-info"):
             self.log.info("no precise installed. beginn installation")
-            self.install_precise_source()
+            _thread.start_new_thread(self.install_precise_source, ())
         if self.settings["soundbackup"] is True:
-            self.download_sounds()
+            _thread.start_new_thread(self.download_sounds, ())
         self.save_wakewords()
 
          ## Wait vor wakeword
@@ -233,8 +234,14 @@ class WakeWord(MycroftSkill):
             import py7zr
             name = self.settings["name"]
             if not os.path.isfile(self.file_system.path+"/nonesounds.7z"):
-                self.log.info("downloading soundbackup")
-                wget.download('http://downloads.tuxfamily.org/pdsounds/pdsounds_march2009.7z', self.file_system.path+"/nonesounds.7z")
+                free_mb = psutil.disk_usage('/')[2] / 1024 / 1024
+                if free_mb <= 1500:
+                    self.settings["soundbackup"] = False
+                    self.log.info("no space: Sound Download not possible")
+                    return
+                else:
+                    self.log.info("downloading soundbackup")
+                    wget.download('http://downloads.tuxfamily.org/pdsounds/pdsounds_march2009.7z', self.file_system.path+"/nonesounds.7z")
             if not os.path.isdir(self.settings["file_path"]+"/"+name+"/not-wake-word/noises"):
                 if not os.path.isdir(self.file_system.path+"/noises"):
                     os.makedirs(self.file_system.path+"/noises")
@@ -243,21 +250,31 @@ class WakeWord(MycroftSkill):
                     py7zr.unpack_7zarchive(self.file_system.path+"/nonesounds.7z", self.file_system.path+"/noises")
                     self.log.info("download sucess, start convert")
                 if not os.path.isdir(self.file_system.path+"/noises/noises"):
-                    for root, dirs, files in os.walk(self.file_system.path+"/noises/mp3/"):
-                        for f in files:
-                            filename = os.path.join(root, f)
-                            if filename.endswith('.mp3'):
-                                self.log.info("Filename: "+filename)
-                                if not os.path.isdir(self.file_system.path+"/noises/noises"):
-                                    os.makedirs(self.file_system.path+"/noises/noises")
-                                self.soundbackup_convert = subprocess.Popen(["ffmpeg -i "+filename+" -acodec pcm_s16le -ar 16000 -ac 1 -f wav "+
-                                                                self.file_system.path+"/noises/noises/noises-"+str(uuid.uuid1())+".wav"],
-                                                                preexec_fn=os.setsid, shell=True)
-                                self.log.info("extratct: "+filename)
-                    self.log.info("Make Filelink")
+                    folder = self.file_system.path+"/noises/mp3/"
+                    fileformat = '.mp3'
+                    i = 1
+                    while i <= 2:
+                        for root, dirs, files in os.walk(folder):
+                            for f in files:
+                                filename = os.path.join(root, f)
+                                if filename.endswith(fileformat):
+                                    self.log.info("Filename: "+filename)
+                                    soundfile = filename.replace(fileformat, '').replace(folder, '')
+                                    if not os.path.isdir(self.file_system.path+"/noises/noises"):
+                                        os.makedirs(self.file_system.path+"/noises/noises")
+                                    subprocess.call(["ffmpeg -i "+filename+" -acodec pcm_s16le -ar 16000 -ac 1 -f wav "+
+                                                    self.file_system.path+"/noises/noises/"+soundfile+".wav"],
+                                                    preexec_fn=os.setsid, shell=True)
+                                    self.log.info("extratct: "+filename)
+                        folder = self.file_system.path+"/noises/otherformats/"
+                        fileformat = '.flac'
+                        i = i + 1
+                    self.speak_dialog("download.success")
                 if not os.path.isdir(self.settings["file_path"]+"/"+name+"/not-wake-word"):
                     os.makedirs(self.settings["file_path"]+"/"+name+"/not-wake-word")
-                os.symlink(self.file_system.path+"/noises/noises/", self.settings["file_path"]+"/"+name+"/not-wake-word/noises")
+                if not os.path.isdir(self.settings["file_path"]+"/"+name+"/not-wake-word/noises"):
+                    self.log.info("Make Filelink")
+                    os.symlink(self.file_system.path+"/noises/noises/", self.settings["file_path"]+"/"+name+"/not-wake-word/noises")
         else:
             return True
 
@@ -362,18 +379,14 @@ class WakeWord(MycroftSkill):
                             play_wav(filename)
                             sell = self.ask_yesno("ask.sell", data={'i': i})
                             i = i+1
+                            path = None
                             if sell == "yes":
-                                if not os.path.isdir(self.settings["file_path"]+"/"+name+"/wake-word/"+self.lang[:2]+"-short/"):
-                                    os.makedirs(self.settings["file_path"]+"/"+name+"/wake-word/"+self.lang[:2]+"-short/")
-                                file = (self.settings["file_path"]+"/"+name+"/wake-word/"+self.lang[:2]+
-                                         "-short/"+name+"-"+self.lang[:2]+"-"+str(uuid.uuid1())+".wav")
-                                os.rename(filename, file)
-                                self.log.info("move File: "+file)
+                                path = self.settings["file_path"]+"/"+name+"/wake-word/"+self.lang[:2]+"-short/"
                             elif sell == "no":
-                                if not os.path.isdir(self.settings["file_path"]+"/"+name+"not-/wake-word/"+self.lang[:2]+"-short-not/"):
-                                    os.makedirs(self.settings["file_path"]+"/"+name+"not-/wake-word/"+self.lang[:2]+"-short-not/")
-                                file = (self.settings["file_path"]+"/"+name+"not-wake-word/"+self.lang[:2]+
-                                         "-short-not/"+name+"-"+self.lang[:2]+"-"+str(uuid.uuid1())+".wav")
+                                path = self.settings["file_path"]+"/"+name+"not-wake-word/"+self.lang[:2]+"-short-not/"
+                            if not path is None:
+                                os.makedirs(path)
+                                file = path+name+"-"+self.lang[:2]+"-"+str(uuid.uuid1())+".wav"
                                 os.rename(filename, file)
                                 self.log.info("move File: "+file)
                             else:
@@ -392,7 +405,10 @@ class WakeWord(MycroftSkill):
             name = name.replace(' ', '-')
         else:
             name = self.config_core.get('listener', {}).get('wake_word')
-        self.git_upload(name)
+        if os.path.isfile(self.file_system.path+"/"+name+".pb"):
+            self.git_upload(name)
+        else:
+            self.speak.dalog("no.file")
 
     def git_upload(self, name):
         repo = Repo(self.file_system.path+"/Precise-Community-Data")
@@ -404,6 +420,9 @@ class WakeWord(MycroftSkill):
         else:
             origin = repo.remote('origin')
             origin.pull()
+
+    def prepaire_repo(self, name):
+        self.log.info("make repo ready vor uploade")
 
     def save_wakewords(self):
         from mycroft.configuration.config import (
