@@ -83,7 +83,7 @@ class WakeWord(MycroftSkill):
         #### TO DO
         ### dirty solution for fail on my raspberry
         if platform == "picroft":
-            subprocess.call([self.file_system.path+"/precise/.venv/bin/python -m pip install tensorflow==1.10.1"],
+            subprocess.check_call([self.file_system.path+"/precise/.venv/bin/python -m pip install tensorflow==1.10.1"],
                                 preexec_fn=os.setsid, shell=True)
 
         self.log.info("end installation")
@@ -277,15 +277,15 @@ class WakeWord(MycroftSkill):
     def calculating_intent(self, name, message):
         self.log.info("calculating")
         self.settings["name"] = name
-        if self.download_sounds:
-            self.precise_calc = subprocess.Popen([self.file_system.path+"/precise/.venv/bin/python "+
+        self.download_sounds
+        self.precise_calc = subprocess.Popen([self.file_system.path+"/precise/.venv/bin/python "+
                                     self.file_system.path+"/precise/precise/scripts/train.py "+
                                     self.file_system.path+"/"+name+".net "+
                                     self.settings["file_path"]+name+" -e "+ str(600)],
                                     preexec_fn=os.setsid, shell=True)
-            self.schedule_repeating_event(self.precise_calc_check, None, 3,
+        self.schedule_repeating_event(self.precise_calc_check, None, 3,
                                           name='PreciseCalc')
-            return True
+        return True
 
     def download_sounds(self):
         if self.settings["soundbackup"] is True:
@@ -320,7 +320,7 @@ class WakeWord(MycroftSkill):
                                     soundfile = filename.replace(fileformat, '').replace(folder, '')
                                     if not os.path.isdir(self.file_system.path+"/noises/noises"):
                                         os.makedirs(self.file_system.path+"/noises/noises")
-                                    subprocess.call(["ffmpeg -i "+filename+" -acodec pcm_s16le -ar 16000 -ac 1 -f wav "+
+                                    subprocess.check_call(["ffmpeg -i "+filename+" -acodec pcm_s16le -ar 16000 -ac 1 -f wav "+
                                                     self.file_system.path+"/noises/noises/"+soundfile+".wav"],
                                                     preexec_fn=os.setsid, shell=True)
                                     self.log.info("extratct: "+filename)
@@ -340,7 +340,7 @@ class WakeWord(MycroftSkill):
     def precise_calc_check(self, message):
         self.log.info("precise: check for end calculation ")
         name = self.settings["name"]
-        if self.precise_calc.poll():
+        if not self.precise_calc.poll() is None:
             self.cancel_scheduled_event('PreciseCalc')
             if os.path.isfile(self.file_system.path+"/"+self.settings["name"]+".net"):
                 self.precise_con(name, message)
@@ -348,7 +348,7 @@ class WakeWord(MycroftSkill):
     def precise_con_check(self, message):
         self.log.info("precise: check for end converting ")
         name = self.settings["name"]
-        if self.precise_convert.poll():
+        if not self.precise_convert.poll() is None:
             self.cancel_scheduled_event('PreciseConvert')
             if not self.select_precise_file is None:
                 self.speak_dialog("end.calculating",
