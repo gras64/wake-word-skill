@@ -315,14 +315,16 @@ class WakeWord(MycroftSkill):
                 else:
                     self.log.info("downloading soundbackup")
                     wget.download('http://downloads.tuxfamily.org/pdsounds/pdsounds_march2009.7z', self.file_system.path+"/nonesounds.7z")
-            if not os.path.isdir(self.settings["file_path"]+name+"/not-wake-word/noises"):
+            onlyfiles = next(os.walk(self.settings["file_path"]+name+"/not-wake-word/noises"))[2]
+            if len(onlyfiles) <= 30:
                 if not os.path.isdir(self.file_system.path+"/noises"):
                     os.makedirs(self.file_system.path+"/noises")
                 if not os.path.isdir(self.file_system.path+"/noises/mp3"):
                     self.log.info("unzip soundbackup")
                     py7zr.unpack_7zarchive(self.file_system.path+"/nonesounds.7z", self.file_system.path+"/noises")
                     self.log.info("download sucess, start convert")
-                if not os.path.isdir(self.file_system.path+"/noises/noises"):
+                onlyfiles = next(os.walk(self.file_system.path+"/noises/noises"))[2]
+                if len(onlyfiles) <= 30:
                     folder = self.file_system.path+"/noises/mp3/"
                     fileformat = '.mp3'
                     i = 1
@@ -335,7 +337,7 @@ class WakeWord(MycroftSkill):
                                     soundfile = filename.replace(fileformat, '').replace(folder, '')
                                     if not os.path.isdir(self.file_system.path+"/noises/noises"):
                                         os.makedirs(self.file_system.path+"/noises/noises")
-                                    subprocess.check_call(["ffmpeg -i "+filename+" -acodec pcm_s16le -ar 16000 -ac 1 -f wav "+
+                                    subprocess.call(["ffmpeg -i "+filename+" -acodec pcm_s16le -ar 16000 -ac 1 -f wav "+
                                                     self.file_system.path+"/noises/noises/"+soundfile+".wav"],
                                                     preexec_fn=os.setsid, shell=True)
                                     self.log.info("extratct: "+filename)
