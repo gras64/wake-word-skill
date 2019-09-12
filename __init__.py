@@ -469,12 +469,10 @@ class WakeWord(MycroftSkill):
                                 self.log.info("move File: "+file)
                             else:
                                 os.remove(filename)
-                else:
-                    self.speak_dialog('improve.no.file', data={'name': name})
+            else:
+                self.speak_dialog('improve.no.file', data={'name': name})
         else:
             self.speak_dialog('improve.no.file', data={'name': name})
-
-
 
     @intent_file_handler('upload.intent')
     def upload_intent(self, message):
@@ -526,10 +524,7 @@ class WakeWord(MycroftSkill):
         shutil.copy(precisefolder+"/licenses/license-template.txt", licensefile)
         open(licensefile, "r").replace('I, [author name]', 'I, '+self.settings.get('localgit')+
             ' (https://github.com/'+self.settings.get('localgit')+')')
-        
-        
         #shutil.copytree(self.settings["file_path"]+name+"/wake-word/"+self.lang[:2]+"-short/", precisefolder)
-
 
     def git_upload(self,name):
         self.speak_dialog("upload.success", data={'name': name})
@@ -543,6 +538,7 @@ class WakeWord(MycroftSkill):
             free_mb = psutil.disk_usage('/')[2] / 1024 / 1024
             if free_mb <= self.settings["min_free_disk"]:
                 self.log.info("no space: deactivate recording")
+                self.speak_dialog("disk.full")
                 new_config = {"listener": {"record_wake_words": "true"}}
                 user_config = LocalConf(USER_CONFIG)
                 user_config.merge(new_config)
