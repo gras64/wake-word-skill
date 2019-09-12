@@ -388,14 +388,17 @@ class WakeWord(MycroftSkill):
                             elif sell == "no":
                                 path = self.settings["file_path"]+"/"+name+"/not-wake-word/"+self.lang[:2]+"-short-not/"
                             if not path is None:
-                                os.makedirs(path)
+                                if not os.path.isdir(path):
+                                    os.makedirs(path)
                                 file = path+name+"-"+self.lang[:2]+"-"+str(uuid.uuid1())+".wav"
-                                os.rename(filename, file)
-                                self.log.info("move File: "+file)
+                                if not os.path.isfile(file):
+                                    os.rename(filename, file)
+                                    self.log.info("move File: "+file)
                             else:
                                 os.remove(filename)
                 else:
                     self.speak_dialog('improve.no.file', data={'name': name})
+            self.calculating_intent(name, message)
         else:
             self.speak_dialog('improve.no.file', data={'name': name})
 
@@ -451,8 +454,8 @@ class WakeWord(MycroftSkill):
         shutil.copy(precisefolder+"/licenses/license-template.txt", licensefile)
         open(licensefile, "r").replace('I, [author name]', 'I, '+self.settings.get('localgit')+
             ' (https://github.com/'+self.settings.get('localgit')+')')
-        
-        
+
+
         #shutil.copytree(self.settings["file_path"]+"/"+name+"/wake-word/"+self.lang[:2]+"-short/", precisefolder)
 
 
