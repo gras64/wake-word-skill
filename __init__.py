@@ -10,6 +10,7 @@ import py7zr
 import tarfile
 import linecache
 import shutil
+from shutil import rmtree
 from git import Repo
 from speech_recognition import Recognizer
 
@@ -39,7 +40,7 @@ class WakeWord(MycroftSkill):
         self.settings["min_free_disk"] = 100  # min mb to leave free on disk
         self.settings["rate"] = 16000 # sample rate, hertz
         self.settings["channels"] = 1  # recording channels (1 = mono)
-        self.settings["file_path"] = self.file_system.path + "/data"
+        self.settings["file_path"] = self.file_system.path + "/data/"
         self.settings["sell_path"] = "/tmp/mycroft_wake_words"
         self.settings["duration"] = -1  # default = unknown
         self.settings["formate"] = "S16_LE"
@@ -113,44 +114,98 @@ class WakeWord(MycroftSkill):
         if message.data.get("name"):
             name = message.data.get("name")
             name = name.replace(' ', '-')
-            if os.path.isdir(self.settings["file_path"]+"/"+name):
+            if os.path.isdir(self.settings["file_path"]+name):
                 if self.ask_yesno("model.available",
                                 data={"name": name}) == "yes":
-                    rmtree(self.settings["file_path"]+"/"+name)
+                    rmtree(self.settings["file_path"]+name)
+                    rmtree("/tmp/mycroft_wakeword/")
             self.speak_dialog("word.wake",
                                 data={"name": name})
             wait_while_speaking()
                 # Throw away any previous recording
             time.sleep(4)
             i = 1
-            while i <= 12:
-                wait_while_speaking()
-                time.sleep(1)
-                if not self.record_process or wait_while_speaking():
+            source = "/tmp/mycroft_wakeword/"+name
+            nopath = "/not-wake-word/"+ self.lang[:2] + "-short/"
+            yespath = "/wake-word/"+ self.lang[:2] + "-short/"
+            ### Record test files to tmp
+            while i <= 24:
+                if i < 12:
                     play_wav(self.piep)
-                    path = "wake-word/"+ self.lang[:2] + "-short/"
-                    if i >= 9:
-                        path = "test/wake-word/"+ self.lang[:2]+ "-short/"
+                    path = source+yespath
                     soundfile = name+ "-" + self.lang[:2] +"-"+str(uuid.uuid1())+".wav"
-                    self.start_recording(name,i,path,soundfile)
-                    i = i + 1
-            wait_while_speaking()
-            self.speak_dialog("none.wake.word")
-            time.sleep(4)
-            i = 1
-            while i <= 12:
-                wait_while_speaking()
-                time.sleep(1)
-                if not self.record_process or wait_while_speaking():
+                elif i == 12:
+                    if self.ask_yesno("is.all.ok") == "no":
+                        rmtree(source)
+                        return
                     play_wav(self.piep)
-                    path = "not-wake-word/"+ self.lang[:2] + "-short/"
-                    if i >= 9:
-                        path = "test/not-wake-word/"+ self.lang[:2] + "-short/"
+                    path = source+nopath
                     soundfile = "not"+name+"-"+ self.lang[:2] +"-"+str(uuid.uuid1())+".wav"
-                    self.start_recording(name,i,path,soundfile)
-                    i = i + 1
-            self.speak_dialog("start.calculating")
-            self.calculating_intent(name, message)
+                else:
+                    play_wav(self.piep)
+                    path = source+nopath
+                    soundfile = "not"+name+"-"+ self.lang[:2] +"-"+str(uuid.uuid1())+".wav"
+                time.sleep(2)
+                wait_while_speaking()
+                i = i+1
+                self.start_recording(name,i,path,soundfile)
+            else:
+                #### Save wakewords in data folder
+                if self.ask_yesno("is.all.ok") == "no":
+                    rmtree(source)
+                    return
+                wait_while_speaking()
+                #### wake words with 4 test files
+                i = 1
+                if os.path.isdir(self.settings["file_path"]+name+"/test"+yespath):
+                    onlyfiles = next(os.walk(self.settings["file_path"]+name+"/test"+yespath))
+                    i = 4 - len(onlyfiles)
+                else:
+                    i = 1
+                    os.makedirs(self.settings["file_path"]+name+"/test"+yespath)
+                for root, dirs, files in os.walk(source+yespath):
+                    for f in files:
+                        filename = os.path.join(root, f)
+                        if filename.endswith('.wav'):
+                            if i <= 4:
+                                os.rename(filename, self.settings["file_path"]+name+"/test"+yespath+
+                                            name+ "-" + self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
+                                self.log.info("move file: "+filename)
+                                i = i + 1
+                            else:
+                                if not os.path.isdir(self.settings["file_path"]+name+yespath):
+                                    os.makedirs(self.settings["file_path"]+name+yespath)
+                                os.rename(filename, self.settings["file_path"]+name+yespath+
+                                            name+ "-" + self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
+                                self.log.info("move file: "+filename)
+                                i = i + 1
+                #### not wakeword with 4 test files
+                if os.path.isdir(self.settings["file_path"]+name+"/test"+nopath):
+                    onlyfiles = next(os.walk(self.settings["file_path"]+name+"/test"+nopath))
+                    i = 4 - len(onlyfiles)
+                else:
+                    i = 4
+                    os.makedirs(self.settings["file_path"]+name+"/test"+nopath)
+                for root, dirs, files in os.walk(source+nopath):
+                    for f in files:
+                        filename = os.path.join(root, f)
+                        if filename.endswith('.wav'):
+                            if i <= 4:
+                                if not os.path.isdir(self.settings["file_path"]+name+"/test"+nopath):
+                                    os.makedirs(self.settings["file_path"]+name+"/test/"+nopath)
+                                os.rename(filename, self.settings["file_path"]+name+"/test"+nopath+
+                                            "not"+name+"-"+ self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
+                                self.log.info("move file: "+filename)
+                                i = i + 1
+                            else:
+                                if not os.path.isdir(self.settings["file_path"]+name+nopath):
+                                    os.makedirs(self.settings["file_path"]+name+nopath)
+                                os.rename(filename, self.settings["file_path"]+name+nopath+
+                                            "not"+name+"-"+ self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
+                                self.log.info("move file: "+filename)
+                                i = i + 1
+                self.speak_dialog("start.calculating")
+                self.calculating_intent(name, message)
 
     def start_recording(self, name, i, path, soundfile):
         self.settings["duration"] = 3  # default recording duration
@@ -160,9 +215,9 @@ class WakeWord(MycroftSkill):
                 # Initiate recording
             wait_while_speaking()
             self.start_time = now_local()   # recalc after speaking completes
-            if not os.path.isdir(self.settings["file_path"]+"/"+name +"/"+ path):
-                    os.makedirs(self.settings["file_path"]+"/"+name +"/"+ path)
-            self.record_process = self.record(self.settings["file_path"]+"/"+name +"/"+ path + soundfile,
+            if not os.path.isdir(path):
+                    os.makedirs(path)
+            self.record_process = self.record(path + soundfile,
                                          int(self.settings["duration"]),
                                          self.settings["rate"],
                                          self.settings["channels"])
@@ -226,7 +281,7 @@ class WakeWord(MycroftSkill):
             self.precise_calc = subprocess.Popen([self.file_system.path+"/precise/.venv/bin/python "+
                                     self.file_system.path+"/precise/precise/scripts/train.py "+
                                     self.file_system.path+"/"+name+".net "+
-                                    self.settings["file_path"]+"/"+name+" -e "+ str(600)],
+                                    self.settings["file_path"]+name+" -e "+ str(600)],
                                     preexec_fn=os.setsid, shell=True)
             self.schedule_repeating_event(self.precise_calc_check, None, 3,
                                           name='PreciseCalc')
@@ -245,7 +300,7 @@ class WakeWord(MycroftSkill):
                 else:
                     self.log.info("downloading soundbackup")
                     wget.download('http://downloads.tuxfamily.org/pdsounds/pdsounds_march2009.7z', self.file_system.path+"/nonesounds.7z")
-            if not os.path.isdir(self.settings["file_path"]+"/"+name+"/not-wake-word/noises"):
+            if not os.path.isdir(self.settings["file_path"]+name+"/not-wake-word/noises"):
                 if not os.path.isdir(self.file_system.path+"/noises"):
                     os.makedirs(self.file_system.path+"/noises")
                 if not os.path.isdir(self.file_system.path+"/noises/mp3"):
@@ -273,11 +328,11 @@ class WakeWord(MycroftSkill):
                         fileformat = '.flac'
                         i = i + 1
                     self.speak_dialog("download.success")
-                if not os.path.isdir(self.settings["file_path"]+"/"+name+"/not-wake-word"):
+                if not os.path.isdir(self.settings["file_path"]+name+"/not-wake-word"):
                     os.makedirs(self.settings["file_path"]+"/"+name+"/not-wake-word")
-                if not os.path.isdir(self.settings["file_path"]+"/"+name+"/not-wake-word/noises"):
+                if not os.path.isdir(self.settings["file_path"]+name+"/not-wake-word/noises"):
                     self.log.info("Make Filelink")
-                    os.symlink(self.file_system.path+"/noises/noises/", self.settings["file_path"]+"/"+name+"/not-wake-word/noises")
+                    os.symlink(self.file_system.path+"/noises/noises/", self.settings["file_path"]+name+"/not-wake-word/noises")
         else:
             return True
 
@@ -373,6 +428,7 @@ class WakeWord(MycroftSkill):
                 selling = self.settings["improve"]
             self.speak_dialog('improve', data={'name': name, "selling": selling})
             self.log.info("search wake word in: "+self.settings["sell_path"])
+            wait_while_speaking()
             for root, dirs, files in os.walk(self.settings["sell_path"]):
                 for f in files:
                     filename = os.path.join(root, f)
@@ -380,25 +436,26 @@ class WakeWord(MycroftSkill):
                         if i <= selling:
                             self.log.info("play file")
                             play_wav(filename)
+                            wait_while_speaking()
+                            time.sleep(3)
                             sell = self.ask_yesno("ask.sell", data={'i': i})
+                            wait_while_speaking()
                             i = i+1
                             path = None
                             if sell == "yes":
-                                path = self.settings["file_path"]+"/"+name+"/wake-word/"+self.lang[:2]+"-short/"
+                                path = self.settings["file_path"]+name+"/wake-word/"+self.lang[:2]+"-short/"
                             elif sell == "no":
-                                path = self.settings["file_path"]+"/"+name+"/not-wake-word/"+self.lang[:2]+"-short-not/"
+                                path = self.settings["file_path"]+name+"/not-wake-word/"+self.lang[:2]+"-short-not/"
                             if not path is None:
                                 if not os.path.isdir(path):
                                     os.makedirs(path)
                                 file = path+name+"-"+self.lang[:2]+"-"+str(uuid.uuid1())+".wav"
-                                if not os.path.isfile(file):
-                                    os.rename(filename, file)
-                                    self.log.info("move File: "+file)
+                                os.rename(filename, file)
+                                self.log.info("move File: "+file)
                             else:
                                 os.remove(filename)
                 else:
                     self.speak_dialog('improve.no.file', data={'name': name})
-            self.calculating_intent(name, message)
         else:
             self.speak_dialog('improve.no.file', data={'name': name})
 
@@ -454,9 +511,9 @@ class WakeWord(MycroftSkill):
         shutil.copy(precisefolder+"/licenses/license-template.txt", licensefile)
         open(licensefile, "r").replace('I, [author name]', 'I, '+self.settings.get('localgit')+
             ' (https://github.com/'+self.settings.get('localgit')+')')
-
-
-        #shutil.copytree(self.settings["file_path"]+"/"+name+"/wake-word/"+self.lang[:2]+"-short/", precisefolder)
+        
+        
+        #shutil.copytree(self.settings["file_path"]+name+"/wake-word/"+self.lang[:2]+"-short/", precisefolder)
 
 
     def git_upload(self,name):
