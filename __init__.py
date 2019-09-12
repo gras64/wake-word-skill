@@ -78,12 +78,12 @@ class WakeWord(MycroftSkill):
         self.log.info("Starting installation")
         platform = self.config_core.get('enclosure', {}).get('platform')
         os.chmod(self.file_system.path + '/precise/setup.sh', 0o755)
-        subprocess.call(self.file_system.path+'/precise/setup.sh',
+        return subprocess.check_call(self.file_system.path+'/precise/setup.sh',
                         preexec_fn=os.setsid, shell=True)
         #### TO DO
         ### dirty solution for fail on my raspberry
         if platform == "picroft":
-            subprocess.check_call([self.file_system.path+"/precise/.venv/bin/python -m pip install tensorflow==1.10.1"],
+            return subprocess.check_call([self.file_system.path+"/precise/.venv/bin/python -m pip install tensorflow==1.10.1"],
                                 preexec_fn=os.setsid, shell=True)
 
         self.log.info("end installation")
@@ -135,7 +135,8 @@ class WakeWord(MycroftSkill):
                     path = source+yespath
                     soundfile = name+ "-" + self.lang[:2] +"-"+str(uuid.uuid1())+".wav"
                 elif i == 12:
-                    if self.ask_yesno("is.all.ok") == "no":
+                    stop = self.speak_dialog("none.wake.word", expect_response=True)
+                    if  stop == "stop":
                         rmtree(source)
                         return
                     play_wav(self.piep)
@@ -180,11 +181,12 @@ class WakeWord(MycroftSkill):
                                 self.log.info("move file: "+filename)
                                 i = i + 1
                 #### not wakeword with 4 test files
+                i = 1
                 if os.path.isdir(self.settings["file_path"]+name+"/test"+nopath):
                     onlyfiles = next(os.walk(self.settings["file_path"]+name+"/test"+nopath))
                     i = 4 - len(onlyfiles)
                 else:
-                    i = 4
+                    i = 1
                     os.makedirs(self.settings["file_path"]+name+"/test"+nopath)
                 for root, dirs, files in os.walk(source+nopath):
                     for f in files:
@@ -277,11 +279,24 @@ class WakeWord(MycroftSkill):
     def calculating_intent(self, name, message):
         self.log.info("calculating")
         self.settings["name"] = name
-        self.download_sounds
+        self.download_sounds()
         self.precise_calc = subprocess.Popen([self.file_system.path+"/precise/.venv/bin/python "+
                                     self.file_system.path+"/precise/precise/scripts/train.py "+
                                     self.file_system.path+"/"+name+".net "+
                                     self.settings["file_path"]+name+" -e "+ str(600)],
+                                    preexec_fn=os.setsid, shell=True)
+        self.schedule_repeating_event(self.precise_calc_check, None, 3,
+                                          name='PreciseCalc')
+        return True
+
+    def calculating_incremental(self, name, message):
+        self.log.info("calculating")
+        self.settings["name"] = name
+        self.download_sounds()
+        self.precise_calc = subprocess.Popen([self.file_system.path+"/precise/.venv/bin/python "+
+                                    self.file_system.path+"/precise/precise/scripts/train-incremental.py "+
+                                    self.file_system.path+"/"+name+".net "+
+                                    self.settings["file_path"]+name],
                                     preexec_fn=os.setsid, shell=True)
         self.schedule_repeating_event(self.precise_calc_check, None, 3,
                                           name='PreciseCalc')
