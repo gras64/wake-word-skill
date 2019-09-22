@@ -117,8 +117,10 @@ class WakeWord(MycroftSkill):
             if os.path.isdir(self.settings["file_path"]+name):
                 if self.ask_yesno("model.available",
                                 data={"name": name}) == "yes":
-                    rmtree(self.settings["file_path"]+name)
-                    rmtree("/tmp/mycroft_wakeword/")
+                    if os.path.isdir(self.settings["file_path"]+name):
+                        rmtree(self.settings["file_path"]+name)
+                    if os.path.isdir("/tmp/mycroft_wakeword/"):
+                        rmtree("/tmp/mycroft_wakeword/")
             self.speak_dialog("word.wake",
                                 data={"name": name})
             wait_while_speaking()
@@ -135,8 +137,8 @@ class WakeWord(MycroftSkill):
                     path = source+yespath
                     soundfile = name+ "-" + self.lang[:2] +"-"+str(uuid.uuid1())+".wav"
                 elif i == 12:
-                    stop = self.speak_dialog("none.wake.word", expect_response=True)
-                    if  stop == "stop":
+                    status = self.speak_dialog("none.wake.word", expect_response=True)
+                    if  status == "stop":
                         rmtree(source)
                         return
                     play_wav(self.piep)
@@ -218,7 +220,7 @@ class WakeWord(MycroftSkill):
             wait_while_speaking()
             self.start_time = now_local()   # recalc after speaking completes
             if not os.path.isdir(path):
-                    os.makedirs(path)
+                os.makedirs(path)
             self.record_process = self.record(path + soundfile,
                                          int(self.settings["duration"]),
                                          self.settings["rate"],
@@ -279,12 +281,12 @@ class WakeWord(MycroftSkill):
     def calculating_intent(self, name, message):
         self.log.info("calculating")
         self.settings["name"] = name
-        self.download_sounds()
+        #self.download_sounds()
         self.precise_calc = subprocess.Popen([self.file_system.path+"/precise/.venv/bin/python "+
                                     self.file_system.path+"/precise/precise/scripts/train.py "+
                                     self.file_system.path+"/"+name+".net "+
                                     self.settings["file_path"]+name+" -e "+ str(600)],
-                                    preexec_fn=os.setsid, shell=True)
+                                    preexec_fn=os.setsid, stdout=subprocess.PIPE, shell=True)
         self.schedule_repeating_event(self.precise_calc_check, None, 3,
                                           name='PreciseCalc')
         return True
@@ -292,12 +294,12 @@ class WakeWord(MycroftSkill):
     def calculating_incremental(self, name, message):
         self.log.info("calculating")
         self.settings["name"] = name
-        self.download_sounds()
+        #self.download_sounds()
         self.precise_calc = subprocess.Popen([self.file_system.path+"/precise/.venv/bin/python "+
                                     self.file_system.path+"/precise/precise/scripts/train-incremental.py "+
                                     self.file_system.path+"/"+name+".net "+
                                     self.settings["file_path"]+name],
-                                    preexec_fn=os.setsid, shell=True)
+                                    preexec_fn=os.setsid, stdout=subprocess.PIPE, shell=True)
         self.schedule_repeating_event(self.precise_calc_check, None, 3,
                                           name='PreciseCalc')
         return True
@@ -315,8 +317,8 @@ class WakeWord(MycroftSkill):
                 else:
                     self.log.info("downloading soundbackup")
                     wget.download('http://downloads.tuxfamily.org/pdsounds/pdsounds_march2009.7z', self.file_system.path+"/nonesounds.7z")
-            onlyfiles = next(os.walk(self.settings["file_path"]+name+"/not-wake-word/noises"))[2]
-            if len(onlyfiles) <= 30:
+            #onlyfiles = next(os.walk(self.settings["file_path"]+name+"/not-wake-word/noises"))[2]
+            #if len(onlyfiles) <= 30:
                 if not os.path.isdir(self.file_system.path+"/noises"):
                     os.makedirs(self.file_system.path+"/noises")
                 if not os.path.isdir(self.file_system.path+"/noises/mp3"):
@@ -357,10 +359,27 @@ class WakeWord(MycroftSkill):
     def precise_calc_check(self, message):
         self.log.info("precise: check for end calculation ")
         name = self.settings["name"]
+        if not os.path.isdir(self.file_system.path+"/"+name+".logs"):
+            os.makedirs(self.file_system.path+"/"+name+".logs")
+        #for line in .stdout:
+        #file.write(line.replace("\n",""))
         if not self.precise_calc.poll() is None:
             self.cancel_scheduled_event('PreciseCalc')
             if os.path.isfile(self.file_system.path+"/"+self.settings["name"]+".net"):
-                self.precise_con(name, message)
+                self.log.info("start convert file: ")
+                #self.precise_con(name, message)
+        #if not self.precise_calc.stdout is None:
+        self.log.info("test1")
+        file = open(self.file_system.path+"/"+name+".logs/output.txt", "a")
+        self.log.info("test2")
+        data = ""
+        if not self.precise_calc.stdout is None:
+            data = self.precise_calc.stdout.read()
+            data = str(data).replace("\n'", "").replace("b'", "").replace("b''", "")
+        self.log.info("schreibe log: "+str(data))
+        file.write((str(data))+"\n")
+        self.log.info("file close")
+        file.close()
 
     def precise_con_check(self, message):
         self.log.info("precise: check for end converting ")
