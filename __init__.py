@@ -171,14 +171,14 @@ class WakeWord(MycroftSkill):
                         filename = os.path.join(root, f)
                         if filename.endswith('.wav'):
                             if i <= 4:
-                                os.rename(filename, self.settings["file_path"]+name+"/test"+yespath+
+                                shutil.move(filename, self.settings["file_path"]+name+"/test"+yespath+
                                             name+ "-" + self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
                                 self.log.info("move file: "+filename)
                                 i = i + 1
                             else:
                                 if not os.path.isdir(self.settings["file_path"]+name+yespath):
                                     os.makedirs(self.settings["file_path"]+name+yespath)
-                                os.rename(filename, self.settings["file_path"]+name+yespath+
+                                shutil.move(filename, self.settings["file_path"]+name+yespath+
                                             name+ "-" + self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
                                 self.log.info("move file: "+filename)
                                 i = i + 1
@@ -197,14 +197,14 @@ class WakeWord(MycroftSkill):
                             if i <= 4:
                                 if not os.path.isdir(self.settings["file_path"]+name+"/test"+nopath):
                                     os.makedirs(self.settings["file_path"]+name+"/test/"+nopath)
-                                os.rename(filename, self.settings["file_path"]+name+"/test"+nopath+
+                                shutil.move(filename, self.settings["file_path"]+name+"/test"+nopath+
                                             "not"+name+"-"+ self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
                                 self.log.info("move file: "+filename)
                                 i = i + 1
                             else:
                                 if not os.path.isdir(self.settings["file_path"]+name+nopath):
                                     os.makedirs(self.settings["file_path"]+name+nopath)
-                                os.rename(filename, self.settings["file_path"]+name+nopath+
+                                shutil.move(filename, self.settings["file_path"]+name+nopath+
                                             "not"+name+"-"+ self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
                                 self.log.info("move file: "+filename)
                                 i = i + 1
@@ -486,7 +486,7 @@ class WakeWord(MycroftSkill):
                                 if not os.path.isdir(path):
                                     os.makedirs(path)
                                 file = path+name+"-"+self.lang[:2]+"-"+str(uuid.uuid1())+".wav"
-                                os.rename(filename, file)
+                                shutil.move(filename, file)
                                 self.log.info("move File: "+file)
                             else:
                                 os.remove(filename)
