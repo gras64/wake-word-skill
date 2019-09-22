@@ -367,7 +367,7 @@ class WakeWord(MycroftSkill):
             self.cancel_scheduled_event('PreciseCalc')
             if os.path.isfile(self.file_system.path+"/"+self.settings["name"]+".net"):
                 self.log.info("start convert file: ")
-                #self.precise_con(name, message)
+                self.precise_con(name, message)
         #if not self.precise_calc.stdout is None:
         self.log.info("test1")
         file = open(self.file_system.path+"/"+name+".logs/output.txt", "a")
