@@ -361,25 +361,19 @@ class WakeWord(MycroftSkill):
         name = self.settings["name"]
         if not os.path.isdir(self.file_system.path+"/"+name+".logs"):
             os.makedirs(self.file_system.path+"/"+name+".logs")
-        #for line in .stdout:
-        #file.write(line.replace("\n",""))
         if not self.precise_calc.poll() is None:
             self.cancel_scheduled_event('PreciseCalc')
             if os.path.isfile(self.file_system.path+"/"+self.settings["name"]+".net"):
                 self.log.info("start convert file: ")
                 self.precise_con(name, message)
-        #if not self.precise_calc.stdout is None:
-        self.log.info("test1")
+        #Write logfile calculation to disk
         file = open(self.file_system.path+"/"+name+".logs/output.txt", "a")
-        self.log.info("test2")
-        data = ""
         if not self.precise_calc.stdout is None:
-            data = self.precise_calc.stdout.read()
-            data = str(data).replace("\n'", "").replace("b'", "").replace("b''", "")
-        self.log.info("schreibe log: "+str(data))
-        file.write((str(data))+"\n")
-        self.log.info("file close")
-        file.close()
+            for line in iter(self.precise_calc.stdout.readline, b''):
+                data = str(line.rstrip()).replace("b'", "").replace("' ", "")
+                file.write(data + "\n")
+                self.log.info("schreibe log: "+data)
+            file.close()
 
     def precise_con_check(self, message):
         self.log.info("precise: check for end converting ")
