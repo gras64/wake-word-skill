@@ -78,13 +78,15 @@ class WakeWord(MycroftSkill):
         self.log.info("Starting installation")
         platform = self.config_core.get('enclosure', {}).get('platform')
         os.chmod(self.file_system.path + '/precise/setup.sh', 0o755)
-        return subprocess.check_call(self.file_system.path+'/precise/setup.sh',
+        subprocess.call(self.file_system.path+'/precise/setup.sh',
                         preexec_fn=os.setsid, shell=True)
         #### TO DO
         ### dirty solution for fail on my raspberry
+        self.log.info("check picroft: "+platform)
         if platform == "picroft":
-            return subprocess.check_call([self.file_system.path+"/precise/.venv/bin/python -m pip install tensorflow==1.10.1"],
-                                preexec_fn=os.setsid, shell=True)
+            self.log.info("Starting picroft fix")
+            subprocess.call([self.file_system.path+"/precise/.venv/bin/python -m pip install tensorflow==1.10.1"],
+                               preexec_fn=os.setsid, shell=True)
 
         self.log.info("end installation")
         self.speak_dialog("installed.OK")
@@ -281,7 +283,9 @@ class WakeWord(MycroftSkill):
     def calculating_intent(self, name, message):
         self.log.info("calculating")
         self.settings["name"] = name
-        #self.download_sounds()
+        self.download_sounds()
+        if os.path.isfile(self.file_system.path+"/"+name+".logs/output.txt"):
+            os.remove(self.file_system.path+"/"+name+".logs/output.txt")
         self.precise_calc = subprocess.Popen([self.file_system.path+"/precise/.venv/bin/python "+
                                     self.file_system.path+"/precise/precise/scripts/train.py "+
                                     self.file_system.path+"/"+name+".net "+
@@ -294,7 +298,9 @@ class WakeWord(MycroftSkill):
     def calculating_incremental(self, name, message):
         self.log.info("calculating")
         self.settings["name"] = name
-        #self.download_sounds()
+        self.download_sounds()
+        if os.path.isfile(self.file_system.path+"/"+name+".logs/output.txt"):
+            os.remove(self.file_system.path+"/"+name+".logs/output.txt")
         self.precise_calc = subprocess.Popen([self.file_system.path+"/precise/.venv/bin/python "+
                                     self.file_system.path+"/precise/precise/scripts/train-incremental.py "+
                                     self.file_system.path+"/"+name+".net "+
@@ -349,9 +355,9 @@ class WakeWord(MycroftSkill):
                     self.speak_dialog("download.success")
                 if not os.path.isdir(self.settings["file_path"]+name+"/not-wake-word"):
                     os.makedirs(self.settings["file_path"]+"/"+name+"/not-wake-word")
-                if not os.path.isdir(self.settings["file_path"]+name+"/not-wake-word/noises"):
-                    self.log.info("Make Filelink")
-                    os.symlink(self.file_system.path+"/noises/noises/", self.settings["file_path"]+name+"/not-wake-word/noises")
+            if not os.path.isdir(self.settings["file_path"]+name+"/not-wake-word/noises"):
+                self.log.info("Make Filelink")
+                os.symlink(self.file_system.path+"/noises/noises/", self.settings["file_path"]+name+"/not-wake-word/noises")
         else:
             return True
 
@@ -527,18 +533,46 @@ class WakeWord(MycroftSkill):
         self.log.info("make repo ready vor upload")
         precisefolder = self.file_system.path+"/Precise-Community-Data"
         presiceversion = linecache.getline(self.file_system.path + "/precise/mycroft_precise.egg-info/PKG-INFO", 3).replace('Version: ', '')[:5]
+        modelzip = precisefolder+"/"+name+"/models/"+name+"-"+self.lang[:3]+presiceversion+"-"+time.strftime("%Y%m%d")+"-"+self.settings.get('localgit')+".tar.gz"
         if not os.path.isdir(precisefolder+"/"+name+"/models/"):
             os.makedirs(precisefolder+"/"+name+"/models/")
-        tar = tarfile.open(precisefolder+"/"+name+"/models/"+name+"-"+self.lang[:3]+presiceversion+"-"+
-                            time.strftime("%Y%m%d")+"-"+self.settings.get('localgit')+".tar.gz", "w:gz")
-        for name in [self.file_system.path+"/"+name+".pb", self.file_system.path+"/"+name+".pbtxt",
+        tar = tarfile.open(modelzip, "w:gz")
+        for nams in [self.file_system.path+"/"+name+".pb", self.file_system.path+"/"+name+".pbtxt",
                     self.file_system.path+"/"+name+".pb.params"]:
-            tar.add(name)
+            tar.add(nams)
+        #### calculating info
+        traininfo = linecache.getline(self.file_system.path+"/"+name+".logs/output.txt", 2)
+        #### generate Readme.md
+        readmefile = precisefolder+"/"+name+"/models/README.md"
+        file = open(readmefile, "a")
+        if not os.path.isfile(readmefile):
+            file.write("# "+name+"\n")
+        file.write("\n### "+name+"-"+self.lang[:3]+time.strftime("%Y%m%d")+"\n")
+        file.write(presiceversion+" "+traininfo[:1]+". Use Public Domain Sounds Backup:"+str(self.settings["soundbackup"])+
+                    ", automatically generated by wakeword trainer skill \n")
+        file.close()
+
         ###### licenses
-        licensefile = precisefolder+"/licenses/licenses-"+time.strftime("%Y%m%d")+"-"+self.settings.get('localgit')+".txt"
-        shutil.copy(precisefolder+"/licenses/license-template.txt", licensefile)
-        open(licensefile, "r").replace('I, [author name]', 'I, '+self.settings.get('localgit')+
+        licensefile = precisefolder+"/licenses/license-"+time.strftime("%Y%m%d")+"-"+self.settings.get('localgit')+".txt"
+        fobj_in = open(precisefolder+"/licenses/license-template.txt", "r")
+        fobj_out = open(licensefile, "w")
+        for line in fobj_in:
+            line = line.replace("I, [author name]", "I, "+self.settings.get('localgit')+
             ' (https://github.com/'+self.settings.get('localgit')+')')
+            line = line.replace("/file/name/1", "automatically generated by gras64 wakeword trainer skill").replace("/file/name/2", "")
+            fobj_out.write(str(line)+"\n")
+        modelzipfile = modelzip.replace(precisefolder+"/", "")
+        fobj_out.write(modelzipfile+"\n")
+        for root, dirs, files in os.walk(self.settings["file_path"]+name):
+            for f in files:
+                filename = os.path.join(root, f)
+                self.log.info("filename: "+filename)
+                if filename.endswith('.wav'):
+                    filename = filename.replace(self.settings["file_path"], "")
+                    fobj_out.write(filename+"\n")
+        fobj_in.close()
+        fobj_out.close()
+
         #shutil.copytree(self.settings["file_path"]+name+"/wake-word/"+self.lang[:2]+"-short/", precisefolder)
 
     def git_upload(self,name):
