@@ -10,6 +10,10 @@ skillMetadata:
           label: Use Public Domain Sounds Backup
           value: "false"
           placeholder: Public Domain Sounds Backup
+        - name: selling
+          type: number
+          value: "15"
+          label: Sell wake word numbers
     - name: Data upload to Precise-Community-Data
       fields:
         - name: savewakewords
@@ -17,14 +21,15 @@ skillMetadata:
           label: save wakewords
           value: "false"
           placeholder: demo prompt in the input box
+        - name: onlyPrecise
+          type: checkbox
+          label: only Precise files
+          value: "true"
+          placeholder: only Precise files without wav data
         - name: repo
           type: text
           label: repository for upload
           value: "https://github.com/MycroftAI/Precise-Community-Data.git"
-        - name: selling
-          type: number
-          value: "15"
-          label: Sell wake word numbers
     - name: Git Settings vor Upload
       fields:
          - name: localgit
