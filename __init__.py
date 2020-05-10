@@ -156,6 +156,9 @@ class WakeWord(FallbackSkill):
                 if self.halt:
                     self.speak_dialog("no")
                     rmtree(source)
+                    self.remove_event('recognizer_loop:record_end')
+                    self.remove_event('recognizer_loop:record_begin')
+                    self.remove_fallback(self.handle_validator)
                     return
                 elif self.halt is None:
                     shutil.move(self.recordpath + self.recordfile, source+nopath+"not"+self.new_name+"-"+ self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
@@ -166,7 +169,7 @@ class WakeWord(FallbackSkill):
                     self.recordpath = source+yespath
                     self.recordfile = str(self.new_name+ "-" + self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
                 elif i == 12:
-                    stop = ""
+                    time.sleep(2)
                     self.speak_dialog("none.wake.word")
                     time.sleep(4)
                     wait_while_speaking()
