@@ -6,4 +6,4 @@ dependencies:
     - wget
 
   system:
-    all: python3-pip libopenblas-dev python3-scipy cython libhdf5-dev python3-h5py portaudio19-dev ffmpeg
+    all: python3-pip libopenblas-dev python3-scipy cython libhdf5-dev python3-h5py portaudio19-dev ffmpeg hdf5-helpers libaec-dev libaec0 libatlas3-base libhdf5-100 libhdf5-cpp-100 libopenblas-base libsz2 python3-decorator python3-numpy

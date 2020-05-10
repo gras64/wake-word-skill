@@ -16,6 +16,13 @@
                         "placeholder": "Public Domain Sounds Backup"
                     },
                     {
+                        "name": "usevalidator",
+                        "type": "checkbox",
+                        "label": "Validate Recording with STT",
+                        "value": "true",
+                        "placeholder": "Use Validator"
+                    },
+                    {
                         "name": "selling",
                         "type": "number",
                         "value": "15",
