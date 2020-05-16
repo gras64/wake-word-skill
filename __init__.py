@@ -135,7 +135,6 @@ class WakeWord(FallbackSkill):
                         rmtree("/tmp/mycroft_wakeword/")
             self.speak_dialog("word.wake",
                                 data={"name": name})
-            time.sleep(2)
             wait_while_speaking()
                 # Throw away any previous recording
             i = 1
@@ -153,17 +152,35 @@ class WakeWord(FallbackSkill):
                 while self.record_process:
                     time.sleep(1)
                 time.sleep(2)
-                if self.halt:
-                    self.speak_dialog("no")
-                    rmtree(source)
+                if self.halt is True:
                     self.remove_event('recognizer_loop:record_end')
                     self.remove_event('recognizer_loop:record_begin')
                     self.remove_fallback(self.handle_validator)
-                    return
+                    if self.ask_yesno("calculate.anyway") == "yes":
+                        self.calculating_intent(self.new_name)
+                        self.speak_dialog("start.calculating")
+                        return
+                    else:
+                        rmtree(source)
+                        self.speak_dialog("no")
+                        return
+                elif self.halt is "break":
+                    self.ask_yesno("break")
+                    self.remove_event('recognizer_loop:record_end')
+                    self.remove_event('recognizer_loop:record_begin')
+                    self.remove_fallback(self.handle_validator)
+                    self.record_file_mover(yespath, nopath, source)
+                    if self.ask_yesno("calculate.anyway") == "yes":
+                        self.calculating_intent(self.new_name)
+                        self.speak_dialog("start.calculating")
+                    else:
+                        self.speak_dialog("break")
+                        return
                 elif self.halt is None:
                     shutil.move(self.recordpath + self.recordfile, source+nopath+"not"+self.new_name+"-"+ self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
                     if i <=11:
                         i = i-1
+                self.log.info("step number "+str(i))
                 if i < 12:
                     #play_wav(self.piep)
                     self.recordpath = source+yespath
@@ -171,7 +188,6 @@ class WakeWord(FallbackSkill):
                 elif i == 12:
                     time.sleep(2)
                     self.speak_dialog("none.wake.word")
-                    time.sleep(4)
                     wait_while_speaking()
                     #play_wav(self.piep)
                     self.recordpath = source+nopath
@@ -205,58 +221,61 @@ class WakeWord(FallbackSkill):
                     rmtree(source)
                     return
                 wait_while_speaking()
-                #### wake words with 4 test files
-                i = 1
-                if os.path.isdir(self.settings["file_path"]+self.new_name+"/test"+yespath):
-                    onlyfiles = next(os.walk(self.settings["file_path"]+self.new_name+"/test"+yespath))
-                    i = 4 - len(onlyfiles)
-                else:
-                    i = 1
-                    os.makedirs(self.settings["file_path"]+self.new_name+"/test"+yespath)
-                for root, dirs, files in os.walk(source+yespath):
-                    for f in files:
-                        filename = os.path.join(root, f)
-                        if filename.endswith('.wav'):
-                            if i <= 4:
-                                shutil.move(filename, self.settings["file_path"]+self.new_name+"/test"+yespath+
-                                            self.new_name+ "-" + self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
-                                self.log.info("move file: "+filename)
-                                i = i + 1
-                            else:
-                                if not os.path.isdir(self.settings["file_path"]+self.new_name+yespath):
-                                    os.makedirs(self.settings["file_path"]+self.new_name+yespath)
-                                shutil.move(filename, self.settings["file_path"]+self.new_name+yespath+
-                                            self.new_name+ "-" + self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
-                                self.log.info("move file: "+filename)
-                                i = i + 1
-                #### not wakeword with 4 test files
-                i = 1
-                if os.path.isdir(self.settings["file_path"]+self.new_name+"/test"+nopath):
-                    onlyfiles = next(os.walk(self.settings["file_path"]+self.new_name+"/test"+nopath))
-                    i = 4 - len(onlyfiles)
-                else:
-                    i = 1
-                    os.makedirs(self.settings["file_path"]+self.new_name+"/test"+nopath)
-                for root, dirs, files in os.walk(source+nopath):
-                    for f in files:
-                        filename = os.path.join(root, f)
-                        if filename.endswith('.wav'):
-                            if i <= 4:
-                                if not os.path.isdir(self.settings["file_path"]+self.new_name+"/test"+nopath):
-                                    os.makedirs(self.settings["file_path"]+self.new_name+"/test/"+nopath)
-                                shutil.move(filename, self.settings["file_path"]+self.new_name+"/test"+nopath+
-                                            "not"+self.new_name+"-"+ self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
-                                self.log.info("move file: "+filename)
-                                i = i + 1
-                            else:
-                                if not os.path.isdir(self.settings["file_path"]+self.new_name+nopath):
-                                    os.makedirs(self.settings["file_path"]+self.new_name+nopath)
-                                shutil.move(filename, self.settings["file_path"]+self.new_name+nopath+
-                                            "not"+self.new_name+"-"+ self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
-                                self.log.info("move file: "+filename)
-                                i = i + 1
+                self.record_file_mover(yespath, nopath, source)
+                self.calculating_intent(self.new_name)
                 self.speak_dialog("start.calculating")
-                self.calculating_intent(self.new_name, message)
+
+    def record_file_mover(self, yespath, nopath, source):
+        #### wake words with 4 test files
+        i = 1
+        if os.path.isdir(self.settings["file_path"]+self.new_name+"/test"+yespath):
+            onlyfiles = next(os.walk(self.settings["file_path"]+self.new_name+"/test"+yespath))
+            i = 4 - len(onlyfiles)
+        else:
+            i = 1
+            os.makedirs(self.settings["file_path"]+self.new_name+"/test"+yespath)
+        for root, dirs, files in os.walk(source+yespath):
+            for f in files:
+                filename = os.path.join(root, f)
+                if filename.endswith('.wav'):
+                    if i <= 4:
+                        shutil.move(filename, self.settings["file_path"]+self.new_name+"/test"+yespath+
+                                    self.new_name+ "-" + self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
+                        self.log.info("move file: "+filename)
+                        i = i + 1
+                    else:
+                        if not os.path.isdir(self.settings["file_path"]+self.new_name+yespath):
+                            os.makedirs(self.settings["file_path"]+self.new_name+yespath)
+                        shutil.move(filename, self.settings["file_path"]+self.new_name+yespath+
+                                    self.new_name+ "-" + self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
+                        self.log.info("move file: "+filename)
+                        i = i + 1
+                #### not wakeword with 4 test files
+        i = 1
+        if os.path.isdir(self.settings["file_path"]+self.new_name+"/test"+nopath):
+            onlyfiles = next(os.walk(self.settings["file_path"]+self.new_name+"/test"+nopath))
+            i = 4 - len(onlyfiles)
+        else:
+            i = 1
+            os.makedirs(self.settings["file_path"]+self.new_name+"/test"+nopath)
+        for root, dirs, files in os.walk(source+nopath):
+            for f in files:
+                filename = os.path.join(root, f)
+                if filename.endswith('.wav'):
+                    if i <= 4:
+                        if not os.path.isdir(self.settings["file_path"]+self.new_name+"/test"+nopath):
+                            os.makedirs(self.settings["file_path"]+self.new_name+"/test/"+nopath)
+                        shutil.move(filename, self.settings["file_path"]+self.new_name+"/test"+nopath+
+                                    "not"+self.new_name+"-"+ self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
+                        self.log.info("move file: "+filename)
+                        i = i + 1
+                    else:
+                        if not os.path.isdir(self.settings["file_path"]+self.new_name+nopath):
+                            os.makedirs(self.settings["file_path"]+self.new_name+nopath)
+                        shutil.move(filename, self.settings["file_path"]+self.new_name+nopath+
+                                    "not"+self.new_name+"-"+ self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
+                        self.log.info("move file: "+filename)
+                        i = i + 1
     
     def loop(self):
         pass
@@ -276,16 +295,21 @@ class WakeWord(FallbackSkill):
             self.log.info('Stop')
             self.halt = True
             return True
-        elif not self.new_name in msg:
+        elif self.voc_match(msg, "break"):
+            self.log.info("break")
+            self.halt = "break"
+            return True
+        elif self.new_name in msg:
             self.log.info('skip File to no wakewords')
-            self.halt = None
+            self.halt = False
             return True
         else:
+            self.halt = None
             return True
 
     def start_recording(self):
         self.log.info("sart recording")
-        self.settings["duration"] = 3  # default recording duration
+        self.settings["duration"] = 5  # max recording duration
 
 
         if self.has_free_disk_space():
@@ -351,7 +375,7 @@ class WakeWord(FallbackSkill):
         else:
             return False
 
-    def calculating_intent(self, name, message):
+    def calculating_intent(self, name):
         self.log.info("calculating")
         self.settings["Name"] = name
         self.download_sounds()
@@ -546,10 +570,10 @@ class WakeWord(FallbackSkill):
                         if filename.endswith('.wav'):
                             if i <= selling:
                                 self.log.info("play file")
-                                play_wav(filename).wait()
+                                play_wav(filename)
                                 wait_while_speaking()
                             #time.sleep(3)
-                                sell = self.ask_yesno("ask.sell", data={'i': i}).wait()
+                                sell = self.ask_yesno("ask.sell", data={'i': i})
                                 wait_while_speaking()
                                 i = i+1
                                 path = None
