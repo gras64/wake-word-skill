@@ -23,6 +23,7 @@ from mycroft.messagebus.message import Message
 from mycroft.audio import wait_while_speaking, is_speaking
 from mycroft import MycroftSkill, intent_file_handler
 from mycroft.util import play_wav, resolve_resource_file
+from mycroft.util.parse import fuzzy_match
 from mycroft.util.time import now_local
 from mycroft.util.log import LOG, getLogger
 from mycroft.session import SessionManager
@@ -165,7 +166,7 @@ class WakeWord(FallbackSkill):
                     rmtree("/tmp/mycroft_wakeword/")
         if self.settings["wwnr"] >= 1:
             self.speak_dialog("word.wake",
-                                data={"name": name})
+                                data={"name": name, "number":self.settings["wwnr"]})
         else:
             self.speak_dialog("none.wake.word")
             # Throw away any previous recording
@@ -188,7 +189,7 @@ class WakeWord(FallbackSkill):
             if self.halt is True:
                 self.remove_event('recognizer_loop:record_end')
                 self.remove_event('recognizer_loop:record_begin')
-                self.remove_fallback(self.handle_validator)
+                self.remove_instance_handlers()
                 if self.ask_yesno("calculate.anyway") == "yes":
                     self.speak_dialog("start.calculating")
                     self.calculating_intent(self.new_name)
@@ -201,7 +202,7 @@ class WakeWord(FallbackSkill):
             elif self.halt is "break":
                 self.remove_event('recognizer_loop:record_end')
                 self.remove_event('recognizer_loop:record_begin')
-                self.remove_fallback(self.handle_validator)
+                self.remove_instance_handlers()
                 self.record_file_mover(yespath, nopath, source)
                 if self.ask_yesno("calculate.anyway") == "yes":
                     self.speak_dialog("start.calculating")
@@ -249,7 +250,7 @@ class WakeWord(FallbackSkill):
             self.log.info("end records")
             self.remove_event('recognizer_loop:record_end')
             self.remove_event('recognizer_loop:record_begin')
-            self.remove_fallback(self.handle_validator)
+            self.remove_instance_handlers()
             #### Save wakewords in data folder
             if self.ask_yesno("is.all.ok") == "no":
                 rmtree(source)
@@ -333,7 +334,7 @@ class WakeWord(FallbackSkill):
             self.log.info("break")
             self.halt = "break"
             return True
-        elif self.new_name in msg:
+        elif fuzzy_match(msg, self.new_name) > 0.8:
             self.log.info('skip File to no wakewords')
             self.halt = False
             return True
@@ -795,7 +796,7 @@ class WakeWord(FallbackSkill):
         super(WakeWord, self).shutdown()
         self.remove_event('recognizer_loop:record_end')
         self.remove_event('recognizer_loop:record_begin')
-        self.remove_fallback(self.handle_validator)
+        self.remove_instance_handlers()
         self.settings.update
 
 def create_skill():
