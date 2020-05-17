@@ -151,7 +151,10 @@ class WakeWord(FallbackSkill):
         if message.data.get("name"):
             name = message.data.get("name")
         else:
-            name = self.get_respons('witch.wakeword')
+            name = self.get_response('witch.wakeword')
+            if name is None:
+                self.speak_dialog('no')
+                return
         name = name.replace(' ', '-')
         if os.path.isdir(self.settings["file_path"]+name):
             if self.ask_yesno("model.available",
@@ -176,6 +179,7 @@ class WakeWord(FallbackSkill):
         if not os.path.isdir(source+yespath):
             os.makedirs(source+yespath)
         self.new_name = name
+        wait_while_speaking()
         ### Record test files to tmp
         while i <= self.settings["wwnr"]+self.settings["nowwnr"]:
             while self.record_process:
@@ -186,24 +190,25 @@ class WakeWord(FallbackSkill):
                 self.remove_event('recognizer_loop:record_begin')
                 self.remove_fallback(self.handle_validator)
                 if self.ask_yesno("calculate.anyway") == "yes":
-                    self.calculating_intent(self.new_name)
                     self.speak_dialog("start.calculating")
+                    self.calculating_intent(self.new_name)
                     return
                 else:
                     rmtree(source)
                     self.speak_dialog("no")
+                    wait_while_speaking()
                     return
             elif self.halt is "break":
-                self.ask_yesno("break")
                 self.remove_event('recognizer_loop:record_end')
                 self.remove_event('recognizer_loop:record_begin')
                 self.remove_fallback(self.handle_validator)
                 self.record_file_mover(yespath, nopath, source)
                 if self.ask_yesno("calculate.anyway") == "yes":
-                    self.calculating_intent(self.new_name)
                     self.speak_dialog("start.calculating")
+                    self.calculating_intent(self.new_name)
                 else:
                     self.speak_dialog("break")
+                    wait_while_speaking()
                     return
             elif self.halt is None:
                 shutil.move(self.recordpath + self.recordfile, source+nopath+"not"+self.new_name+"-"+ self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
