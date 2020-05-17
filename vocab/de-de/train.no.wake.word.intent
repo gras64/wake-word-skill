@@ -1,4 +1,4 @@
 (ich|) trainiere ({nonumber}|) noweckword {name}
 (ich|) möchte (mein eigenes|ein|) no wakeword (zu|über|) {name} (anlegen|anlernen|)
 (ergänze|trainiere|erweitere) (no erkennungsword|noerkennungsword|noweckword|no weckword) {name}
-add extra not wake word voice samples
+Fügen Sie zusätzliche Sprachbeispiele hinzu, die keine Weckwörter enthalten
