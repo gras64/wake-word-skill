@@ -116,7 +116,7 @@ class WakeWord(FallbackSkill):
         if message.data.get("name"):
             name = message.data.get("name")
         else:
-            name = self.get_respons('witch.wakeword')
+            name = self.get_response('witch.wakeword')
         name = name.replace(' ', '-')
         if name == self.config_core.get('listener', {}).get('wake_word').replace(' ', '-'):
             self.train_wake_word_intent(message)
