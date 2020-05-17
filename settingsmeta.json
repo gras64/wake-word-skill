@@ -27,6 +27,18 @@
                         "type": "number",
                         "value": "15",
                         "label": "Sell wake word numbers"
+                    },
+                    {
+                        "name": "wwnr",
+                        "type": "number",
+                        "value": "12",
+                        "label": "Number of wakewords to record"
+                    },
+                    {
+                        "name": "nowwnr",
+                        "type": "number",
+                        "value": "12",
+                        "label": "Number of nowakewords to record"
                     }
                 ]
             },

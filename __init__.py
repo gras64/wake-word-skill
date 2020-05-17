@@ -56,6 +56,8 @@ class WakeWord(FallbackSkill):
         self.settings["onlyPrecise"] = self.settings.get('onlyPrecise', True)
         self.settings["usevalidator"] = self.settings.get('usevalidator', True)
         self.settings['savewakewords'] = self.settings.get('savewakewords', False)
+        self.settings["wwnr"] = self.settings.get('wwnr', 12)
+        self.settings["nowwnr"] = self.settings.get('nowwnr', 12)
         self.settings["repo"] = self.settings.get('repo', 'https://github.com/MycroftAI/Precise-Community-Data.git')
         if not os.path.isdir(self.file_system.path + "/precise/mycroft_precise.egg-info"):
             self.log.info("no precise installed. beginn installation")
@@ -110,7 +112,10 @@ class WakeWord(FallbackSkill):
 
     @intent_file_handler('wake.word.intent')
     def wake_word_intent(self, message):
-        name = message.data.get("name")
+        if message.data.get("name"):
+            name = message.data.get("name")
+        else:
+            name = self.get_respons('witch.wakeword')
         name = name.replace(' ', '-')
         if name == self.config_core.get('listener', {}).get('wake_word').replace(' ', '-'):
             self.train_wake_word_intent(message)
@@ -121,109 +126,134 @@ class WakeWord(FallbackSkill):
     def event(self):
         self.log.info("test schleife")
 
-    @intent_file_handler('train.wake.word.intent')
-    def train_wake_word_intent(self, message):
+
+    @intent_file_handler('train.intent')
+    def train_precise(self, message):
+        self.log.info("calculating")
         if message.data.get("name"):
             name = message.data.get("name")
             name = name.replace(' ', '-')
-            if os.path.isdir(self.settings["file_path"]+name):
-                if self.ask_yesno("model.available",
-                                data={"name": name}) == "yes":
-                    if os.path.isdir(self.settings["file_path"]+name):
-                        rmtree(self.settings["file_path"]+name)
-                    if os.path.isdir("/tmp/mycroft_wakeword/"):
-                        rmtree("/tmp/mycroft_wakeword/")
+            self.calculating_intent(name)
+            self.speak_dialog("start.calculating")
+            
+    @intent_file_handler('train.no.wake.word.intent')
+    def train_no_wakeword(self, message):
+        if message.data.get("nonumber"):
+            self.settings["nowwnr"] = int(message.data.get("nonumber"))
+        self.settings["wwnr"] = 0
+        self.train_wake_word_intent(message)
+               
+
+    @intent_file_handler('train.wake.word.intent')
+    def train_wake_word_intent(self, message):
+        if message.data.get("number"):
+            self.settings["wwnr"] = int(message.data.get("number"))
+        if message.data.get("name"):
+            name = message.data.get("name")
+        else:
+            name = self.get_respons('witch.wakeword')
+        name = name.replace(' ', '-')
+        if os.path.isdir(self.settings["file_path"]+name):
+            if self.ask_yesno("model.available",
+                            data={"name": name}) == "yes":
+                if os.path.isdir(self.settings["file_path"]+name):
+                    rmtree(self.settings["file_path"]+name)
+                if os.path.isdir("/tmp/mycroft_wakeword/"):
+                    rmtree("/tmp/mycroft_wakeword/")
+        if self.settings["wwnr"] >= 1:
             self.speak_dialog("word.wake",
                                 data={"name": name})
-            wait_while_speaking()
-                # Throw away any previous recording
-            i = 1
-            self.halt = False
-            source = "/tmp/mycroft_wakeword/"+name
-            nopath = "/not-wake-word/"+ self.lang[:2] + "-short/"
-            if not os.path.isdir(source+nopath):
-                os.makedirs(source+nopath)
-            yespath = "/wake-word/"+ self.lang[:2] + "-short/"
-            if not os.path.isdir(source+yespath):
-                os.makedirs(source+yespath)
-            self.new_name = name
-            ### Record test files to tmp
-            while i <= 24:
-                while self.record_process:
-                    time.sleep(1)
-                time.sleep(2)
-                if self.halt is True:
-                    self.remove_event('recognizer_loop:record_end')
-                    self.remove_event('recognizer_loop:record_begin')
-                    self.remove_fallback(self.handle_validator)
-                    if self.ask_yesno("calculate.anyway") == "yes":
-                        self.calculating_intent(self.new_name)
-                        self.speak_dialog("start.calculating")
-                        return
-                    else:
-                        rmtree(source)
-                        self.speak_dialog("no")
-                        return
-                elif self.halt is "break":
-                    self.ask_yesno("break")
-                    self.remove_event('recognizer_loop:record_end')
-                    self.remove_event('recognizer_loop:record_begin')
-                    self.remove_fallback(self.handle_validator)
-                    self.record_file_mover(yespath, nopath, source)
-                    if self.ask_yesno("calculate.anyway") == "yes":
-                        self.calculating_intent(self.new_name)
-                        self.speak_dialog("start.calculating")
-                    else:
-                        self.speak_dialog("break")
-                        return
-                elif self.halt is None:
-                    shutil.move(self.recordpath + self.recordfile, source+nopath+"not"+self.new_name+"-"+ self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
-                    if i <=11:
-                        i = i-1
-                self.log.info("step number "+str(i))
-                if i < 12:
-                    #play_wav(self.piep)
-                    self.recordpath = source+yespath
-                    self.recordfile = str(self.new_name+ "-" + self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
-                elif i == 12:
-                    time.sleep(2)
-                    self.speak_dialog("none.wake.word")
-                    wait_while_speaking()
-                    #play_wav(self.piep)
-                    self.recordpath = source+nopath
-                    self.recordfile = str("not"+self.new_name+"-"+ self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
-                else:
-                    #play_wav(self.piep)
-                    self.recordpath = source+nopath
-                    self.recordfile = str("not"+self.new_name+"-"+ self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
-                #time.sleep(2)
-                self.log.info(self.recordfile)
-                wait_while_speaking()
-                i = i+1
-                #play_wav(self.piep).wait()
-                if i <= 2:
-                    self.add_event('recognizer_loop:record_end',
-                        self.rec_stop)
-                    self.add_event('recognizer_loop:record_begin',
-                        self.loop)
-                    self.register_fallback(self.handle_validator, 1)
-                self.bus.emit(Message('mycroft.mic.listen'))
-                self.start_recording()
-                #self.bus.emit(Message('mycroft.volume.unmute',
-                #              {"speak_message": False}))
-            else:
-                self.log.info("end records")
+        else:
+            self.speak_dialog("none.wake.word")
+        wait_while_speaking()
+            # Throw away any previous recording
+        i = 1
+        self.halt = False
+        source = "/tmp/mycroft_wakeword/"+name
+        nopath = "/not-wake-word/"+ self.lang[:2] + "-short/"
+        if not os.path.isdir(source+nopath):
+            os.makedirs(source+nopath)
+        yespath = "/wake-word/"+ self.lang[:2] + "-short/"
+        if not os.path.isdir(source+yespath):
+            os.makedirs(source+yespath)
+        self.new_name = name
+        ### Record test files to tmp
+        while i <= self.settings["wwnr"]+self.settings["nowwnr"]:
+            while self.record_process:
+                time.sleep(1)
+            time.sleep(2)
+            if self.halt is True:
                 self.remove_event('recognizer_loop:record_end')
                 self.remove_event('recognizer_loop:record_begin')
                 self.remove_fallback(self.handle_validator)
-                #### Save wakewords in data folder
-                if self.ask_yesno("is.all.ok") == "no":
-                    rmtree(source)
+                if self.ask_yesno("calculate.anyway") == "yes":
+                    self.calculating_intent(self.new_name)
+                    self.speak_dialog("start.calculating")
                     return
-                wait_while_speaking()
+                else:
+                    rmtree(source)
+                    self.speak_dialog("no")
+                    return
+            elif self.halt is "break":
+                self.ask_yesno("break")
+                self.remove_event('recognizer_loop:record_end')
+                self.remove_event('recognizer_loop:record_begin')
+                self.remove_fallback(self.handle_validator)
                 self.record_file_mover(yespath, nopath, source)
-                self.calculating_intent(self.new_name)
-                self.speak_dialog("start.calculating")
+                if self.ask_yesno("calculate.anyway") == "yes":
+                    self.calculating_intent(self.new_name)
+                    self.speak_dialog("start.calculating")
+                else:
+                    self.speak_dialog("break")
+                    return
+            elif self.halt is None:
+                shutil.move(self.recordpath + self.recordfile, source+nopath+"not"+self.new_name+"-"+ self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
+                if i <= self.settings["wwnr"]-1:
+                    i = i-1
+            self.log.info("step number "+str(i))
+            if i < self.settings["wwnr"]:
+                #play_wav(self.piep)
+                self.recordpath = source+yespath
+                self.recordfile = str(self.new_name+ "-" + self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
+            elif i == self.settings["wwnr"]:
+                time.sleep(2)
+                self.speak_dialog("none.wake.word")
+                wait_while_speaking()
+                #play_wav(self.piep)
+                self.recordpath = source+nopath
+                self.recordfile = str("not"+self.new_name+"-"+ self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
+            else:
+                #play_wav(self.piep)
+                self.recordpath = source+nopath
+                self.recordfile = str("not"+self.new_name+"-"+ self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
+                #time.sleep(2)
+            self.log.info(self.recordfile)
+            wait_while_speaking()
+            i = i+1
+            #play_wav(self.piep).wait()
+            if i <= 2:
+                self.add_event('recognizer_loop:record_end',
+                    self.rec_stop)
+                self.add_event('recognizer_loop:record_begin',
+                    self.loop)
+                self.register_fallback(self.handle_validator, 1)
+            self.bus.emit(Message('mycroft.mic.listen'))
+            self.start_recording()
+                #self.bus.emit(Message('mycroft.volume.unmute',
+                #              {"speak_message": False}))
+        else:
+            self.log.info("end records")
+            self.remove_event('recognizer_loop:record_end')
+            self.remove_event('recognizer_loop:record_begin')
+            self.remove_fallback(self.handle_validator)
+            #### Save wakewords in data folder
+            if self.ask_yesno("is.all.ok") == "no":
+                rmtree(source)
+                return
+            wait_while_speaking()
+            self.record_file_mover(yespath, nopath, source)
+            self.calculating_intent(self.new_name)
+            self.speak_dialog("start.calculating")
 
     def record_file_mover(self, yespath, nopath, source):
         #### wake words with 4 test files
@@ -763,7 +793,6 @@ class WakeWord(FallbackSkill):
         self.remove_event('recognizer_loop:record_begin')
         self.remove_fallback(self.handle_validator)
         self.settings.update
-
 
 def create_skill():
     return WakeWord()

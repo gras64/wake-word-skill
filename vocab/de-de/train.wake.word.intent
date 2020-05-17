@@ -1,2 +1,3 @@
-(ich|) trainiere weckword {name}
+(ich|) trainiere ({number}|) weckword {name}
 (ich|) möchte (mein eigenes|ein|) model (zu|über|) {name} (anlegen|anlernen|)
+(ergänze|trainiere|erweitere) (erkennungsword|weckword) {name}
