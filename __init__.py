@@ -165,7 +165,6 @@ class WakeWord(FallbackSkill):
                                 data={"name": name})
         else:
             self.speak_dialog("none.wake.word")
-        wait_while_speaking()
             # Throw away any previous recording
         i = 1
         self.halt = False
