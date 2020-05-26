@@ -66,6 +66,8 @@ class WakeWord(FallbackSkill):
         if self.settings["soundbackup"] is True:
             _thread.start_new_thread(self.download_sounds, ())
         self.save_wakewords()
+        #self.bus.emit(Message('notification:alert',
+        #                        {'skill': "test2"}))
 
          ## Wait vor wakeword
         #_wait_until_wake_word(source, sec_per_buffer):
@@ -588,8 +590,12 @@ class WakeWord(FallbackSkill):
     def improve_intent(self, message):
         name = self.config_core.get('listener', {}).get('wake_word').replace(' ', '-')
         i = 1
-        if os.path.isdir(self.settings["sell_path"]):
-            onlyfiles = next(os.walk(self.settings["sell_path"]))[2]
+        if self.ask_yesno('old.or.new') is "yes":
+            ipath = self.settings["sell_path"]
+        else:
+            ipath = self.settings["file_path"]+name+"/wake-word/"+self.lang[:2]+"-short/"
+        if os.path.isdir(ipath):
+            onlyfiles = next(os.walk(ipath))[2]
             if len(onlyfiles) <= self.settings["improve"]:
                 selling = len(onlyfiles)
             else:
@@ -597,35 +603,39 @@ class WakeWord(FallbackSkill):
             if int(selling) >= 1:
                 self.speak_dialog('improve', data={'name': name, "selling": selling}, wait=True)
             else:
-                self.log.info("search wake word in: "+self.settings["sell_path"])
-                wait_while_speaking()
-                for root, dirs, files in os.walk(self.settings["sell_path"]):
-                    for f in files:
-                        filename = os.path.join(root, f)
-                        if filename.endswith('.wav'):
-                            if i <= selling:
-                                self.log.info("play file")
-                                play_wav(filename)
-                                wait_while_speaking()
+                ipath = self.settings["file_path"]+name+"/wake-word/"+self.lang[:2]+"-short/"
+                onlyfiles = next(os.walk(ipath))[2]
+                selling = len(onlyfiles)
+                self.speak_dialog('improve', data={'name': name, "selling": selling}, wait=True)
+            self.log.info("search wake word in: "+ipath)
+            wait_while_speaking()
+            for root, dirs, files in os.walk(ipath):
+                for f in files:
+                    filename = os.path.join(root, f)
+                    if filename.endswith('.wav'):
+                        if i <= selling:
+                            self.log.info("play file")
+                            play_wav(filename)
+                            wait_while_speaking()
                             #time.sleep(3)
-                                sell = self.ask_yesno("ask.sell", data={'i': i})
-                                wait_while_speaking()
-                                i = i+1
-                                path = None
-                                if sell == "yes":
-                                    path = self.settings["file_path"]+name+"/wake-word/"+self.lang[:2]+"-short/"
-                                elif sell == "no":
-                                    path = self.settings["file_path"]+name+"/not-wake-word/"+self.lang[:2]+"-short-not/"
-                                if not path is None:
-                                    if not os.path.isdir(path):
-                                        os.makedirs(path)
-                                    file = path+name+"-"+self.lang[:2]+"-"+str(uuid.uuid1())+".wav"
-                                    shutil.move(filename, file)
-                                    self.log.info("move File: "+file)
-                                else:
-                                    os.remove(filename)
-                else:
-                    self.speak_dialog('improve.no.file', data={'name': name})
+                            sell = self.ask_yesno("ask.sell", data={'i': i})
+                            wait_while_speaking()
+                            i = i+1
+                            path = None
+                            if sell == "yes":
+                                path = self.settings["file_path"]+name+"/wake-word/"+self.lang[:2]+"-short/"
+                            elif sell == "no":
+                                path = self.settings["file_path"]+name+"/not-wake-word/"+self.lang[:2]+"-short-not/"
+                            if not path is None:
+                                if not os.path.isdir(path):
+                                    os.makedirs(path)
+                                file = path+name+"-"+self.lang[:2]+"-"+str(uuid.uuid1())+".wav"
+                                shutil.move(filename, file)
+                                self.log.info("move File: "+file)
+                            else:
+                                os.remove(filename)
+            else:
+                self.speak_dialog('improve.no.file', data={'name': name})
         else:
             self.speak_dialog('improve.no.file', data={'name': name})
 
