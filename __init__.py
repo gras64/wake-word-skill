@@ -1,32 +1,34 @@
-from os.path import dirname, expanduser, abspath, os, sys
-import time
-import uuid
-import subprocess
-import psutil as psutil
-import pyaudio
-import wget, base64
-import _thread
-import py7zr
-import tarfile
+import base64
 import linecache
 import shutil
+import subprocess
+import tarfile
+import time
+import uuid
+from os.path import abspath, dirname, expanduser, os, sys
 from shutil import rmtree
+
+import psutil as psutil
+
+import _thread
 import git
-from github import GithubException #
-from github import Github
-#from github.Repository import Repository #
-from speech_recognition import Recognizer
+import py7zr
+import pyaudio
+import wget
+from github import Github, GithubException  # 
 from msk.exceptions import GithubRepoExists
-from mycroft.skills.core import FallbackSkill
+from mycroft import MycroftSkill, intent_file_handler
+from mycroft.audio import is_speaking, wait_while_speaking
 from mycroft.filesystem import FileSystemAccess
 from mycroft.messagebus.message import Message
-from mycroft.audio import wait_while_speaking, is_speaking
-from mycroft import MycroftSkill, intent_file_handler
+from mycroft.session import SessionManager
+from mycroft.skills.core import FallbackSkill
 from mycroft.util import play_wav, resolve_resource_file
+from mycroft.util.log import LOG, getLogger
 from mycroft.util.parse import fuzzy_match
 from mycroft.util.time import now_local
-from mycroft.util.log import LOG, getLogger
-from mycroft.session import SessionManager
+#from github.Repository import Repository #
+from speech_recognition import Recognizer
 
 LOGGER = getLogger(__name__)
 
@@ -57,6 +59,7 @@ class WakeWord(FallbackSkill):
         self.settings["onlyPrecise"] = self.settings.get('onlyPrecise', True)
         self.settings["usevalidator"] = self.settings.get('usevalidator', True)
         self.settings['savewakewords'] = self.settings.get('savewakewords', False)
+        self.settings['oploadserver'] = self.settings.get('oploadserver', False)
         self.settings["wwnr"] = self.settings.get('wwnr', 12)
         self.settings["nowwnr"] = self.settings.get('nowwnr', 12)
         self.settings["repo"] = self.settings.get('repo', 'https://github.com/MycroftAI/Precise-Community-Data.git')
@@ -66,12 +69,17 @@ class WakeWord(FallbackSkill):
         if self.settings["soundbackup"] is True:
             _thread.start_new_thread(self.download_sounds, ())
         self.save_wakewords()
+        if self.settings['oploadserver']:
+            self.recording_server = subprocess.Popen('python -m http.server 8082', cwd=self.file_system.path+"/data",
+                                    preexec_fn=os.setsid, shell=True)
+            self.log.info("load server success")
         #self.bus.emit(Message('notification:alert',
         #                        {'skill': "test2"}))
 
          ## Wait vor wakeword
         #_wait_until_wake_word(source, sec_per_buffer):
         self.recordfile = ""
+
 
     def record(self, file_path, duration, rate, channels):
         if duration > 0:
@@ -804,6 +812,7 @@ class WakeWord(FallbackSkill):
 
     def shutdown(self):
         super(WakeWord, self).shutdown()
+        self.stop_process(self.recording_server)
         self.remove_event('recognizer_loop:record_end')
         self.remove_event('recognizer_loop:record_begin')
         self.remove_instance_handlers()

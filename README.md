@@ -6,7 +6,7 @@ This skill is now one of the most complex skills I have ever done and not everyt
 
 ## About
 wakeword is only a few times spoken and bad detection sorted out. you could not do that through speech. i have thought about it and make a skill.
-This skill should make it easier for everyone to use their own precise wake words and make it possible for everyone.
+This skill should make it easier for everyone to use their own precise wake words and make it possible for everyone. you can also turn on a small webserver to check your audiofiles at http://mycroft_ip:8082
 
 ## Examples
 * "I want to call you christopher"
@@ -26,7 +26,7 @@ You say mycroft "I want to call you Christopher" and mycroft looks for a precise
 
 ### configration
 if you use Public Domain Sounds Backup it will take more then 1 GB space on disk for installation. use it cairfuly!!!
-in the latest version i have set up a validator for the recording files. this can also be deactivated. you can also set up the number of samples to be recorded.
+in the latest version i have set up a validator for the recording files. this can also be deactivated. you can also set up the number of samples to be recorded. you can also turn on a small webserver to check your audiofiles at http://mycroft_ip:8082
 
 ## To Do
 * use of all operating systems an configurations

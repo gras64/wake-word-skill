@@ -16,6 +16,13 @@
                         "placeholder": "Public Domain Sounds Backup"
                     },
                     {
+                        "name": "oploadserver",
+                        "type": "checkbox",
+                        "label": "use download on 8082",
+                        "value": "false",
+                        "placeholder": "use download on 8082"
+                    },
+                    {
                         "name": "usevalidator",
                         "type": "checkbox",
                         "label": "Validate Recording with STT",
