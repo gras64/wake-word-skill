@@ -22,7 +22,7 @@ from mycroft.audio import is_speaking, wait_while_speaking
 from mycroft.filesystem import FileSystemAccess
 from mycroft.messagebus.message import Message
 from mycroft.session import SessionManager
-from mycroft.skills.core import FallbackSkill
+from mycroft import FallbackSkill
 from mycroft.util import play_wav, resolve_resource_file
 from mycroft.util.log import LOG, getLogger
 from mycroft.util.parse import fuzzy_match
@@ -209,7 +209,7 @@ class WakeWord(FallbackSkill):
                     self.speak_dialog("no")
                     wait_while_speaking()
                     return
-            elif self.halt is "break":
+            elif self.halt == "break":
                 self.remove_event('recognizer_loop:record_end')
                 self.remove_event('recognizer_loop:record_begin')
                 self.remove_instance_handlers()
@@ -598,7 +598,7 @@ class WakeWord(FallbackSkill):
     def improve_intent(self, message):
         name = self.config_core.get('listener', {}).get('wake_word').replace(' ', '-')
         i = 1
-        if self.ask_yesno('old.or.new') is "yes":
+        if self.ask_yesno('old.or.new') == "yes":
             ipath = self.settings["sell_path"]
         else:
             ipath = self.settings["file_path"]+name+"/wake-word/"+self.lang[:2]+"-short/"
