@@ -33,9 +33,40 @@ from speech_recognition import Recognizer
 LOGGER = getLogger(__name__)
 
 class WakeWord(FallbackSkill):
+    urls = {
+        'x86_64': 'https://github.com/MycroftAI/mycroft-precise/releases'
+                  '/download/v0.3.0/precise-all_0.3.0_x86_64.tar.gz',
+        'armv7l': 'https://github.com/MycroftAI/mycroft-precise/releases'
+                  '/download/v0.3.0/precise-all_0.3.0_armv7l.tar.gz',
+    }
+    train_model_base_url = 'https://raw.githubusercontent.com/MycroftAI' \
+                           '/precise-data/models/{wake_word}.train.tar.gz'
     def __init__(self):
         #MycroftSkill.__init__(self)
         super(WakeWord, self).__init__()
+        #self.url = self.urls.get(platform.machine(), '')
+        self.platform_supported = bool(self.url)
+        if self.url and not self.url.endswith('.tar.gz'):
+            self.url = requests.get(self.url).text.strip()
+
+        self.folder = expanduser('~/.mycroft/precise-trainer')
+        self.precise_config = self.config_core['precise']
+        self.model_url = self.train_model_base_url.format(
+            wake_word='hey-mycroft'
+        )
+        self.model_file = join(self.folder, posixpath.basename(
+            self.model_url)).replace(
+            '.tar.gz', '.net'
+        )
+
+        self.exe_folder = join(self.folder, 'precise')
+        self.engine_exe = join(self.exe_folder, 'precise-engine')
+
+        makedirs(self.folder, exist_ok=True)
+        self.install_thread = Thread(target=self.install_package)
+        self.install_thread.start()
+        self.install_complete = Event()
+        self.install_failed = False
 
     def initialize(self):
         self.record_process = None
