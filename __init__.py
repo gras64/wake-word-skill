@@ -7,6 +7,20 @@ import time
 import uuid
 from os.path import abspath, dirname, expanduser, os, sys
 from shutil import rmtree
+## from presice trainer
+import wave
+import platform
+from os.path import join
+import posixpath
+from os import makedirs
+from functools import partial
+from time import sleep
+from threading import Thread, Event
+from petact import install_package
+from tempfile import mkstemp, mkdtemp
+from subprocess import call
+from glob import glob
+##
 
 import psutil as psutil
 
@@ -41,10 +55,16 @@ class WakeWord(FallbackSkill):
     }
     train_model_base_url = 'https://raw.githubusercontent.com/MycroftAI' \
                            '/precise-data/models/{wake_word}.train.tar.gz'
+    # TODO: Replace with downloaded data
+    noise_folder = ''
+    chunk_size = 2048
+    threshold = 0.1
+
+
     def __init__(self):
         #MycroftSkill.__init__(self)
         super(WakeWord, self).__init__()
-        #self.url = self.urls.get(platform.machine(), '')
+        self.url = self.urls.get(platform.machine(), '')
         self.platform_supported = bool(self.url)
         if self.url and not self.url.endswith('.tar.gz'):
             self.url = requests.get(self.url).text.strip()
@@ -94,9 +114,9 @@ class WakeWord(FallbackSkill):
         self.settings["wwnr"] = self.settings.get('wwnr', 12)
         self.settings["nowwnr"] = self.settings.get('nowwnr', 12)
         self.settings["repo"] = self.settings.get('repo', 'https://github.com/MycroftAI/Precise-Community-Data.git')
-        if not os.path.isdir(self.file_system.path + "/precise/mycroft_precise.egg-info"):
-            self.log.info("no precise installed. beginn installation")
-            _thread.start_new_thread(self.install_precise_source, ())
+        #if not os.path.isdir(self.file_system.path + "/precise/mycroft_precise.egg-info"):
+        #    self.log.info("no precise installed. beginn installation")
+        #    _thread.start_new_thread(self.install_precise_source, ())
         if self.settings["soundbackup"] is True:
             _thread.start_new_thread(self.download_sounds, ())
         self.save_wakewords()
@@ -121,8 +141,39 @@ class WakeWord(FallbackSkill):
             return subprocess.Popen(
                 ["arecord", "-r", str(rate), "-c", str(channels), "-f", str(self.settings["formate"]), file_path])
 
+    def on_download(self, name):
+        self.log.info('Download for {} started!'.format(name))
+        while not self.install_complete.is_set():
+            self.log.info('Still downloading {}...'.format(name))
+            sleep(5)
+        self.log.info('Download of {} {}!'.format(
+            name, 'failed' if self.install_failed else 'completed'
+        ))
+
     @intent_file_handler('install.precise.source.intent')
-    def install_precise_source(self):
+    def install_package(self):
+        if not self.url:
+            return
+        self.install_failed = True
+        try:
+            install_package(self.url, self.folder, on_download=lambda: Thread(
+                target=partial(
+                    self.on_download, 'precise training exe'
+                ), daemon=True
+            ).start())
+            install_package(
+                self.model_url, self.folder,
+                on_download=lambda: Thread(
+                    target=partial(
+                        self.on_download, 'precise training model'
+                    ), daemon=True
+                ).start()
+            )
+            self.install_failed = False
+        finally:
+            self.install_complete.set()
+
+    '''def install_precise_source(self):
         if not os.path.isdir(self.file_system.path+"/precise"):
             self.speak_dialog("download.started")
             self.log.info("Downloading precice source")
@@ -144,6 +195,7 @@ class WakeWord(FallbackSkill):
 
         self.log.info("end installation")
         self.speak_dialog("installed.OK")
+        '''
 
 
     def has_free_disk_space(self):
@@ -215,11 +267,9 @@ class WakeWord(FallbackSkill):
         self.halt = False
         source = "/tmp/mycroft_wakeword/"+name
         nopath = "/not-wake-word/"+ self.lang[:2] + "-short/"
-        if not os.path.isdir(source+nopath):
-            os.makedirs(source+nopath)
+        makedirs(source+nopath, exist_ok=True)
         yespath = "/wake-word/"+ self.lang[:2] + "-short/"
-        if not os.path.isdir(source+yespath):
-            os.makedirs(source+yespath)
+        makedirs(source+yespath, exist_ok=True)
         self.new_name = name
         wait_while_speaking()
         ### Record test files to tmp
@@ -300,6 +350,8 @@ class WakeWord(FallbackSkill):
             self.record_file_mover(yespath, nopath, source)
             self.calculating_intent(self.new_name)
             self.speak_dialog("start.calculating")
+            thresh = self.calc_thresh(model_file, samples_raw_folder)
+            print("THRESH:", thresh)
 
     def record_file_mover(self, yespath, nopath, source):
         #### wake words with 4 test files
@@ -320,8 +372,7 @@ class WakeWord(FallbackSkill):
                         self.log.info("move file: "+filename)
                         i = i + 1
                     else:
-                        if not os.path.isdir(self.settings["file_path"]+self.new_name+yespath):
-                            os.makedirs(self.settings["file_path"]+self.new_name+yespath)
+                        makedirs(self.settings["file_path"]+self.new_name+yespath, exist_ok=True)
                         shutil.move(filename, self.settings["file_path"]+self.new_name+yespath+
                                     self.new_name+ "-" + self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
                         self.log.info("move file: "+filename)
@@ -339,15 +390,13 @@ class WakeWord(FallbackSkill):
                 filename = os.path.join(root, f)
                 if filename.endswith('.wav'):
                     if i <= 4:
-                        if not os.path.isdir(self.settings["file_path"]+self.new_name+"/test"+nopath):
-                            os.makedirs(self.settings["file_path"]+self.new_name+"/test/"+nopath)
+                        makedirs(self.settings["file_path"]+self.new_name+"/test"+nopath, exist_ok=True)
                         shutil.move(filename, self.settings["file_path"]+self.new_name+"/test"+nopath+
                                     "not"+self.new_name+"-"+ self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
                         self.log.info("move file: "+filename)
                         i = i + 1
                     else:
-                        if not os.path.isdir(self.settings["file_path"]+self.new_name+nopath):
-                            os.makedirs(self.settings["file_path"]+self.new_name+nopath)
+                        makedirs(self.settings["file_path"]+self.new_name+nopath, exist_ok=True)
                         shutil.move(filename, self.settings["file_path"]+self.new_name+nopath+
                                     "not"+self.new_name+"-"+ self.lang[:2] +"-"+str(uuid.uuid1())+".wav")
                         self.log.info("move file: "+filename)
@@ -392,8 +441,7 @@ class WakeWord(FallbackSkill):
                 # Initiate recording
             wait_while_speaking()
             self.start_time = now_local()   # recalc after speaking completes
-            if not os.path.isdir(self.recordpath):
-                os.makedirs(self.recordpath)
+            makedirs(self.recordpath, exist_ok=True)
             self.record_process = self.record(self.recordpath + self.recordfile,
                                          int(self.settings["duration"]),
                                          self.settings["rate"],
@@ -451,7 +499,7 @@ class WakeWord(FallbackSkill):
         else:
             return False
 
-    def calculating_intent(self, name):
+    '''def calculating_intent(self, name):
         self.log.info("calculating")
         self.settings["Name"] = name
         self.download_sounds()
@@ -464,7 +512,24 @@ class WakeWord(FallbackSkill):
                                     preexec_fn=os.setsid, stdout=subprocess.PIPE, shell=True)
         self.schedule_repeating_event(self.precise_calc_check, None, 3,
                                           name='PreciseCalc')
-        return True
+        return True'''
+
+    def calculating_intent(self, name):
+        self.log.info("calculating")
+        self.settings["Name"] = name
+        self.download_sounds()
+        models_folder = join(self.file_system.path)
+        makedirs(models_folder, exist_ok=True)
+        model_file = join(self.file_system.path+"/"+name+".net")
+        samples_folder = join(self.settings["file_path"], name)
+        samples_raw_folder = join(samples_folder, 'wake-word', self.lang[:2]+"-short")
+        #samples_raw_folder = join(samples_folder, 'wake-word')
+        #################self.transfer_train(samples_folder, model_file)
+        self.speak_dialog('start.calculating')
+        self.log.info("model: "+model_file+" sample folder: "+samples_folder+" raw folder: "+samples_raw_folder)
+
+        thresh = self.calc_thresh(model_file, samples_raw_folder)
+        print("THRESH:", thresh)
 
     def calculating_incremental(self, name, message):
         self.log.info("calculating")
@@ -496,8 +561,7 @@ class WakeWord(FallbackSkill):
                     wget.download('http://downloads.tuxfamily.org/pdsounds/pdsounds_march2009.7z', self.file_system.path+"/nonesounds.7z")
             #onlyfiles = next(os.walk(self.settings["file_path"]+name+"/not-wake-word/noises"))[2]
             #if len(onlyfiles) <= 30:
-                if not os.path.isdir(self.file_system.path+"/noises"):
-                    os.makedirs(self.file_system.path+"/noises")
+                makedirs(self.file_system.path+"/noises", exist_ok=True)
                 if not os.path.isdir(self.file_system.path+"/noises/mp3"):
                     self.log.info("unzip soundbackup")
                     py7zr.unpack_7zarchive(self.file_system.path+"/nonesounds.7z", self.file_system.path+"/noises")
@@ -514,8 +578,7 @@ class WakeWord(FallbackSkill):
                                 if filename.endswith(fileformat):
                                     self.log.info("Filename: "+filename)
                                     soundfile = filename.replace(fileformat, '').replace(folder, '')
-                                    if not os.path.isdir(self.file_system.path+"/noises/noises"):
-                                        os.makedirs(self.file_system.path+"/noises/noises")
+                                    makedirs(self.file_system.path+"/noises", exist_ok=True)
                                     subprocess.call(["ffmpeg -i "+filename+" -acodec pcm_s16le -ar 16000 -ac 1 -f wav "+
                                                     self.file_system.path+"/noises/noises/"+soundfile+".wav"],
                                                     preexec_fn=os.setsid, shell=True)
@@ -524,8 +587,7 @@ class WakeWord(FallbackSkill):
                         fileformat = '.flac'
                         i = i + 1
                     self.speak_dialog("download.success")
-                if not os.path.isdir(self.settings["file_path"]+name+"/not-wake-word"):
-                    os.makedirs(self.settings["file_path"]+"/"+name+"/not-wake-word")
+                makedirs(self.settings["file_path"]+name+"/not-wake-word", exist_ok=True)
             if not os.path.isdir(self.settings["file_path"]+name+"/not-wake-word/noises"):
                 if os.path.isdir(self.file_system.path+"/noises/noises/"):
                     self.log.info("Make Filelink")
@@ -537,8 +599,7 @@ class WakeWord(FallbackSkill):
     def precise_calc_check(self, message):
         self.log.info("precise: check for end calculation ")
         name = self.settings["Name"]
-        if not os.path.isdir(self.file_system.path+"/"+name+".logs"):
-            os.makedirs(self.file_system.path+"/"+name+".logs")
+        makedirs(self.file_system.path+"/"+name+".logs", exist_ok=True)
         if not self.precise_calc.poll() is None:
             self.cancel_scheduled_event('PreciseCalc')
             if os.path.isfile(self.file_system.path+"/"+self.settings["Name"]+".net"):
@@ -666,8 +727,7 @@ class WakeWord(FallbackSkill):
                             elif sell == "no":
                                 path = self.settings["file_path"]+name+"/not-wake-word/"+self.lang[:2]+"-short-not/"
                             if not path is None:
-                                if not os.path.isdir(path):
-                                    os.makedirs(path)
+                                makedirs(path, exist_ok=True)
                                 file = path+name+"-"+self.lang[:2]+"-"+str(uuid.uuid1())+".wav"
                                 shutil.move(filename, file)
                                 self.log.info("move File: "+file)
@@ -721,8 +781,7 @@ class WakeWord(FallbackSkill):
         self.log.info("make repo ready vor upload")
         presiceversion = linecache.getline(self.file_system.path + "/precise/mycroft_precise.egg-info/PKG-INFO", 3).replace('Version: ', '')[:5]
         modelzip = self.precisefolder+"/"+name+"/models/"+name+"-"+self.lang[:3]+presiceversion+"-"+time.strftime("%Y%m%d")+"-"+self.settings.get('localgit')+".tar.gz"
-        if not os.path.isdir(self.precisefolder+"/"+name+"/models/"):
-            os.makedirs(self.precisefolder+"/"+name+"/models/")
+        makedirs(self.precisefolder+"/"+name+"/models/", exist_ok=True)
         tar = tarfile.open(modelzip, "w:gz")
         for nams in [self.file_system.path+"/"+name+".pb", self.file_system.path+"/"+name+".pbtxt",
                     self.file_system.path+"/"+name+".pb.params"]:
@@ -764,8 +823,7 @@ class WakeWord(FallbackSkill):
         if not self.settings["onlyPrecise"]:
             source = self.settings["file_path"]+name+"/wake-word/"+self.lang[:2]+"-short/"
             destination = self.precisefolder+"/"+name+"/"+self.lang+"/"
-            if not os.path.isdir(destination):
-                os.makedirs(destination)
+            makedirs(destination, exist_ok=True)
             fobj_out = open(licensefile, "a")
             for filename in os.listdir(source):
                 if filename.endswith('.wav'):
@@ -839,6 +897,58 @@ class WakeWord(FallbackSkill):
                 user_config.merge(new_config)
                 user_config.store()
                 self.bus.emit(Message('configuration.updated'))
+
+    def calc_thresh(self, model_file, samples_folder):
+        from precise_runner import PreciseEngine
+        engine = PreciseEngine(self.engine_exe, model_file, self.chunk_size)
+        engine.start()
+
+        all_max = []
+        for sample_file in glob(join(samples_folder, '*.wav')):
+            self.log.info("samplefile "+sample_file)
+            with wave.open(sample_file, 'r') as wr:
+                frames = wr.readframes(wr.getnframes() - 1)
+            chop = len(frames) % self.chunk_size
+            max_pred = float('-inf')
+            for i in range(10): 
+                engine.get_prediction(b'\0' * self.chunk_size)
+            for pos in range(chop + self.chunk_size, len(frames) + 1,
+                             self.chunk_size):
+                pred = engine.get_prediction(frames[pos - self.chunk_size:pos])
+                max_pred = max(max_pred, pred)
+            print('MAX PRED:', max_pred)
+            all_max.append(max_pred)
+        av_max = sum(all_max) / len(all_max)
+        stddev = sqrt(sum([(i - av_max) ** 2 for i in all_max]))
+        good_max = [i for i in all_max if i > av_max - stddev]
+        good_av = sum(good_max) / len(good_max)
+        stddev = sqrt(sum([(i - good_av) ** 2 for i in good_max]))
+        thresh = good_av - stddev
+        return thresh
+
+    def transfer_train(self, samples_folder, model_file):
+        noised_folder = mkdtemp()
+        wake_word_folder = join(noised_folder, 'wake-word')
+        not_wake_word_folder = join(noised_folder, 'not-wake-word')
+        makedirs(wake_word_folder, exist_ok=True)
+        makedirs(not_wake_word_folder, exist_ok=True)
+        call([
+            join(self.exe_folder, 'precise-add-noise'),
+            samples_folder, self.noise_folder, wake_word_folder,
+            '-if', '10', '-nl', '0.0', '-nh', '0.4'
+        ])
+        call([
+            join(self.exe_folder, 'precise-add-noise'),
+            self.noise_folder, self.noise_folder, not_wake_word_folder,
+            '-if', '10', '-nl', '0.0', '-nh', '0.4'
+        ])
+        shutil.copy(self.model_file, model_file)
+
+        call([
+            join(self.exe_folder, 'precise-train'),
+            model_file, noised_folder,
+            '-e', '1', '-b', '4096',
+        ])
 
 
     def shutdown(self):
