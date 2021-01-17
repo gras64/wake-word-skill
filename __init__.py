@@ -20,6 +20,7 @@ from petact import install_package
 from tempfile import mkstemp, mkdtemp
 from subprocess import call
 from glob import glob
+from math import sqrt
 ##
 
 import psutil as psutil
@@ -81,6 +82,7 @@ class WakeWord(FallbackSkill):
 
         self.exe_folder = join(self.folder, 'precise')
         self.engine_exe = join(self.exe_folder, 'precise-engine')
+        self.convert_exe = join(self.exe_folder, 'precise-convert')
 
         makedirs(self.folder, exist_ok=True)
         self.install_thread = Thread(target=self.install_package)
@@ -350,8 +352,8 @@ class WakeWord(FallbackSkill):
             self.record_file_mover(yespath, nopath, source)
             self.calculating_intent(self.new_name)
             self.speak_dialog("start.calculating")
-            thresh = self.calc_thresh(model_file, samples_raw_folder)
-            print("THRESH:", thresh)
+            #thresh = self.calc_thresh(model_file, samples_raw_folder)
+            #print("THRESH:", thresh)
 
     def record_file_mover(self, yespath, nopath, source):
         #### wake words with 4 test files
@@ -527,10 +529,24 @@ class WakeWord(FallbackSkill):
         #################self.transfer_train(samples_folder, model_file)
         self.speak_dialog('start.calculating')
         self.log.info("model: "+model_file+" sample folder: "+samples_folder+" raw folder: "+samples_raw_folder)
+        self.transfer_train(samples_folder, model_file)
 
         thresh = self.calc_thresh(model_file, samples_raw_folder)
         print("THRESH:", thresh)
 
+    def calculating_incremental(self, name, message):
+        self.log.info("calculating")
+        self.settings["Name"] = name
+        self.download_sounds()
+        if os.path.isfile(self.file_system.path+"/"+name+".logs/output.txt"):
+            os.remove(self.file_system.path+"/"+name+".logs/output.txt")
+        call([
+            join(self.exe_folder, 'precise-train-incremental'),
+            self.file_system.path+"/"+name+".net", self.settings["file_path"]+name
+        ])
+        return True    
+
+        '''
     def calculating_incremental(self, name, message):
         self.log.info("calculating")
         self.settings["Name"] = name
@@ -545,6 +561,7 @@ class WakeWord(FallbackSkill):
         self.schedule_repeating_event(self.precise_calc_check, None, 3,
                                           name='PreciseCalc')
         return True
+        '''
 
     def download_sounds(self):
         if self.settings["soundbackup"] is True:
@@ -595,7 +612,7 @@ class WakeWord(FallbackSkill):
         else:
             return True
 
-
+        '''
     def precise_calc_check(self, message):
         self.log.info("precise: check for end calculation ")
         name = self.settings["Name"]
@@ -613,7 +630,8 @@ class WakeWord(FallbackSkill):
                 file.write(data + "\n")
                 self.log.info("schreibe log: "+data)
             file.close()
-
+        '''
+        '''
     def precise_con_check(self, message):
         self.log.info("precise: check for end converting ")
         self.cancel_scheduled_event('PreciseCalc')
@@ -624,9 +642,15 @@ class WakeWord(FallbackSkill):
                 self.speak_dialog("end.calculating",
                         data={"name": self.settings["Name"]})
                 self.config(name, message)
+        '''
 
     def precise_con(self, name, message):
         self.log.info("precise: start convert to .pb")
+        call([
+            join(self.exe_folder, 'precise-convert'),
+            self.file_system.path+"/"+name+".pb", self.file_system.path+"/"+name+".net"
+        ])
+        '''
         self.precise_convert = subprocess.Popen([self.file_system.path+"/precise/.venv/bin/python "+
                                     self.file_system.path+"/precise/precise/scripts/convert.py -o "+
                                     self.file_system.path+"/"+name+".pb "+
@@ -634,6 +658,7 @@ class WakeWord(FallbackSkill):
                                     bufsize=-1, preexec_fn=os.setsid, shell=True)
         self.schedule_repeating_event(self.precise_con_check, None, 3,
                                       name='PreciseConvert')
+        '''
         return True
 
     def select_precise_file(self, name, message):
