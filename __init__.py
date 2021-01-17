@@ -533,6 +533,7 @@ class WakeWord(FallbackSkill):
 
         thresh = self.calc_thresh(model_file, samples_raw_folder)
         print("THRESH:", thresh)
+        return True
 
     def calculating_incremental(self, name, message):
         self.log.info("calculating")
