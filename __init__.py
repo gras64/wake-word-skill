@@ -606,10 +606,7 @@ class WakeWord(FallbackSkill):
                         i = i + 1
                     self.speak_dialog("download.success")
                 makedirs(self.settings["file_path"]+name+"/not-wake-word", exist_ok=True)
-            if not os.path.isdir(self.settings["file_path"]+name+"/not-wake-word/noises"):
-                if os.path.isdir(self.file_system.path+"/noises/noises/"):
-                    self.log.info("Make Filelink")
-                    os.symlink(self.file_system.path+"/noises/noises/", self.settings["file_path"]+name+"/not-wake-word/noises")
+            self.noise_folder = self.file_system.path+"/noises/noises/"
         else:
             return True
 
@@ -953,7 +950,8 @@ class WakeWord(FallbackSkill):
         return thresh
 
     def transfer_train(self, samples_folder, model_file):
-        noised_folder = mkdtemp()
+        #noised_folder = mkdtemp()
+        noised_folder = "/home/andreas/noisetemp"
         wake_word_folder = join(noised_folder, 'wake-word')
         not_wake_word_folder = join(noised_folder, 'not-wake-word')
         makedirs(wake_word_folder, exist_ok=True)
@@ -963,11 +961,13 @@ class WakeWord(FallbackSkill):
             samples_folder, self.noise_folder, wake_word_folder,
             '-if', '10', '-nl', '0.0', '-nh', '0.4'
         ])
+        self.log.info("add noise wakeword")
         call([
             join(self.exe_folder, 'precise-add-noise'),
             self.noise_folder, self.noise_folder, not_wake_word_folder,
             '-if', '10', '-nl', '0.0', '-nh', '0.4'
         ])
+        self.log.info("add not noise wakeword "+ self.model_file+" "+model_file)
         shutil.copy(self.model_file, model_file)
 
         call([
