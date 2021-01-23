@@ -950,8 +950,7 @@ class WakeWord(FallbackSkill):
         return thresh
 
     def transfer_train(self, samples_folder, model_file):
-        #noised_folder = mkdtemp()
-        noised_folder = "/home/andreas/noisetemp"
+        noised_folder = mkdtemp()
         wake_word_folder = join(noised_folder, 'wake-word')
         not_wake_word_folder = join(noised_folder, 'not-wake-word')
         makedirs(wake_word_folder, exist_ok=True)
