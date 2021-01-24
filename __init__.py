@@ -853,7 +853,7 @@ class WakeWord(FallbackSkill):
         self.log.info("add not noise wakeword "+ self.model_file+" "+model_file)
         shutil.copy(self.model_file, model_file)
         shutil.rmtree(self.file_system.path+"/tmp")
-        makedirs(self.file_system.path+"/tmp", exist_ok=True)
+        #makedirs(self.file_system.path+"/tmp", exist_ok=True)
         shutil.copytree(noised_folder, self.file_system.path+"/tmp")
 
         call([
