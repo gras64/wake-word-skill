@@ -539,7 +539,7 @@ class WakeWord(FallbackSkill):
         self.log.info("precise: start convert to .pb")
         call([
             join(self.exe_folder, 'precise-convert'),
-            self.file_system.path+"/"+name+".pb", self.file_system.path+"/"+name+".net"
+            "-o "+self.file_system.path+"/"+name+".pb", self.file_system.path+"/"+name+".net"
         ])
         return True
 
