@@ -1,7 +1,6 @@
-import base64
+#import base64
 import linecache
 import shutil
-import subprocess
 import tarfile
 import time
 import uuid
@@ -18,16 +17,16 @@ from time import sleep
 from threading import Thread, Event
 from petact import install_package
 from tempfile import mkstemp, mkdtemp
-from subprocess import call
+from subprocess import call, Popen
 from glob import glob
 from math import sqrt
 ##
 
 import psutil as psutil
 
+import ffmpeg
 import _thread
 import git
-import py7zr
 import pyaudio
 import wget
 from github import Github, GithubException  # 
@@ -63,7 +62,6 @@ class WakeWord(FallbackSkill):
 
 
     def __init__(self):
-        #MycroftSkill.__init__(self)
         super(WakeWord, self).__init__()
         self.url = self.urls.get(platform.machine(), '')
         self.platform_supported = bool(self.url)
@@ -96,10 +94,8 @@ class WakeWord(FallbackSkill):
         self.last_index = 24  # index of last pixel in countdowns
         self.source_path = self.file_system.path
         self.piep = resolve_resource_file('snd/start_listening.wav')
-
         self.precisefolder = self.file_system.path+"/Precise-Community-Data"
         self.settings["Name"] = self.config_core.get('listener', {}).get('wake_word').replace(' ', '-')
-        self.settings["soundbackup"] = self.settings.get('soundbackup', False)
         self.settings["min_free_disk"] = 100  # min mb to leave free on disk
         self.settings["rate"] = 16000 # sample rate, hertz
         self.settings["channels"] = 1  # recording channels (1 = mono)
@@ -116,14 +112,9 @@ class WakeWord(FallbackSkill):
         self.settings["wwnr"] = self.settings.get('wwnr', 12)
         self.settings["nowwnr"] = self.settings.get('nowwnr', 12)
         self.settings["repo"] = self.settings.get('repo', 'https://github.com/MycroftAI/Precise-Community-Data.git')
-        #if not os.path.isdir(self.file_system.path + "/precise/mycroft_precise.egg-info"):
-        #    self.log.info("no precise installed. beginn installation")
-        #    _thread.start_new_thread(self.install_precise_source, ())
-        if self.settings["soundbackup"] is True:
-            _thread.start_new_thread(self.download_sounds, ())
         self.save_wakewords()
         if self.settings['oploadserver']:
-            self.recording_server = subprocess.Popen('python -m http.server 8082', cwd=self.file_system.path+"/data",
+            self.recording_server = Popen('python -m http.server 8082', cwd=self.file_system.path+"/data",
                                     preexec_fn=os.setsid, shell=True)
             self.log.info("load server success")
         #self.bus.emit(Message('notification:alert',
@@ -136,11 +127,11 @@ class WakeWord(FallbackSkill):
 
     def record(self, file_path, duration, rate, channels):
         if duration > 0:
-            return subprocess.Popen(
+            return Popen(
                 ["arecord", "-r", str(rate), "-c", str(channels), "-d",
                 str(duration), "-f", str(self.settings["formate"]), file_path])
         else:
-            return subprocess.Popen(
+            return Popen(
                 ["arecord", "-r", str(rate), "-c", str(channels), "-f", str(self.settings["formate"]), file_path])
 
     def on_download(self, name):
@@ -171,34 +162,10 @@ class WakeWord(FallbackSkill):
                     ), daemon=True
                 ).start()
             )
+            _thread.start_new_thread(self.download_sounds, ())
             self.install_failed = False
         finally:
             self.install_complete.set()
-
-    '''def install_precise_source(self):
-        if not os.path.isdir(self.file_system.path+"/precise"):
-            self.speak_dialog("download.started")
-            self.log.info("Downloading precice source")
-            git.Repo.clone_from('https://github.com/MycroftAI/mycroft-precise', self.file_system.path+"/precise")
-        #else:
-         #   Repo.pull('https://github.com/MycroftAI/mycroft-precise', self.file_system.path+"/precise")
-        self.log.info("Starting installation")
-        platform = self.config_core.get('enclosure', {}).get('platform')
-        os.chmod(self.file_system.path + '/precise/setup.sh', 0o755)
-        subprocess.call(self.file_system.path+'/precise/setup.sh',
-                        preexec_fn=os.setsid, shell=True)
-        #### TO DO
-        ### dirty solution for fail on my raspberry
-        self.log.info("check picroft: "+str(platform))
-        if platform == "picroft":
-            self.log.info("Starting picroft fix")
-            subprocess.call([self.file_system.path+"/precise/.venv/bin/python -m pip install tensorflow==1.10.1"],
-                               preexec_fn=os.setsid, shell=True)
-
-        self.log.info("end installation")
-        self.speak_dialog("installed.OK")
-        '''
-
 
     def has_free_disk_space(self):
         space = (30 * self.settings["channels"] *
@@ -501,21 +468,6 @@ class WakeWord(FallbackSkill):
         else:
             return False
 
-    '''def calculating_intent(self, name):
-        self.log.info("calculating")
-        self.settings["Name"] = name
-        self.download_sounds()
-        if os.path.isfile(self.file_system.path+"/"+name+".logs/output.txt"):
-            os.remove(self.file_system.path+"/"+name+".logs/output.txt")
-        self.precise_calc = subprocess.Popen([self.file_system.path+"/precise/.venv/bin/python "+
-                                    self.file_system.path+"/precise/precise/scripts/train.py "+
-                                    self.file_system.path+"/"+name+".net "+
-                                    self.settings["file_path"]+name+" -e "+ str(600)],
-                                    preexec_fn=os.setsid, stdout=subprocess.PIPE, shell=True)
-        self.schedule_repeating_event(self.precise_calc_check, None, 3,
-                                          name='PreciseCalc')
-        return True'''
-
     def calculating_intent(self, name):
         self.log.info("calculating")
         self.settings["Name"] = name
@@ -526,7 +478,6 @@ class WakeWord(FallbackSkill):
         samples_folder = join(self.settings["file_path"], name)
         samples_raw_folder = join(samples_folder, 'wake-word', self.lang[:2]+"-short")
         #samples_raw_folder = join(samples_folder, 'wake-word')
-        #################self.transfer_train(samples_folder, model_file)
         self.speak_dialog('start.calculating')
         self.log.info("model: "+model_file+" sample folder: "+samples_folder+" raw folder: "+samples_raw_folder)
         self.transfer_train(samples_folder, model_file)
@@ -547,100 +498,43 @@ class WakeWord(FallbackSkill):
         ])
         return True    
 
-        '''
-    def calculating_incremental(self, name, message):
-        self.log.info("calculating")
-        self.settings["Name"] = name
-        self.download_sounds()
-        if os.path.isfile(self.file_system.path+"/"+name+".logs/output.txt"):
-            os.remove(self.file_system.path+"/"+name+".logs/output.txt")
-        self.precise_calc = subprocess.Popen([self.file_system.path+"/precise/.venv/bin/python "+
-                                    self.file_system.path+"/precise/precise/scripts/train-incremental.py "+
-                                    self.file_system.path+"/"+name+".net "+
-                                    self.settings["file_path"]+name],
-                                    preexec_fn=os.setsid, stdout=subprocess.PIPE, shell=True)
-        self.schedule_repeating_event(self.precise_calc_check, None, 3,
-                                          name='PreciseCalc')
-        return True
-        '''
-
     def download_sounds(self):
-        if self.settings["soundbackup"] is True:
-            import py7zr
-            name = self.settings["Name"]
-            if not os.path.isfile(self.file_system.path+"/nonesounds.7z"):
-                free_mb = psutil.disk_usage('/')[2] / 1024 / 1024
-                if free_mb <= 1500:
-                    self.settings["soundbackup"] = False
-                    self.log.info("no space: Sound Download not possible")
-                    return
-                else:
-                    self.log.info("downloading soundbackup")
-                    wget.download('http://downloads.tuxfamily.org/pdsounds/pdsounds_march2009.7z', self.file_system.path+"/nonesounds.7z")
-            #onlyfiles = next(os.walk(self.settings["file_path"]+name+"/not-wake-word/noises"))[2]
-            #if len(onlyfiles) <= 30:
-                makedirs(self.file_system.path+"/noises", exist_ok=True)
-                if not os.path.isdir(self.file_system.path+"/noises/mp3"):
-                    self.log.info("unzip soundbackup")
-                    py7zr.unpack_7zarchive(self.file_system.path+"/nonesounds.7z", self.file_system.path+"/noises")
-                    self.log.info("download sucess, start convert")
-                onlyfiles = next(os.walk(self.file_system.path+"/noises/noises"))[2]
-                if len(onlyfiles) <= 30:
-                    folder = self.file_system.path+"/noises/mp3/"
-                    fileformat = '.mp3'
-                    i = 1
-                    while i <= 2:
-                        for root, dirs, files in os.walk(folder):
-                            for f in files:
-                                filename = os.path.join(root, f)
-                                if filename.endswith(fileformat):
-                                    self.log.info("Filename: "+filename)
-                                    soundfile = filename.replace(fileformat, '').replace(folder, '')
-                                    makedirs(self.file_system.path+"/noises", exist_ok=True)
-                                    subprocess.call(["ffmpeg -i "+filename+" -acodec pcm_s16le -ar 16000 -ac 1 -f wav "+
-                                                    self.file_system.path+"/noises/noises/"+soundfile+".wav"],
-                                                    preexec_fn=os.setsid, shell=True)
-                                    self.log.info("extratct: "+filename)
-                        folder = self.file_system.path+"/noises/otherformats/"
-                        fileformat = '.flac'
-                        i = i + 1
-                    self.speak_dialog("download.success")
-                makedirs(self.settings["file_path"]+name+"/not-wake-word", exist_ok=True)
-            self.noise_folder = self.file_system.path+"/noises/noises/"
-        else:
-            return True
+        soundfiles = ["baby_5month_babbling", "baby_dissapointed_cry", "baby_working", "bachidylle", "barbecue",
+                     "buzzing", "carSound", "complete_summer_storm_with_30_thunder_04of04", "cracking_peanuts", "dishwasher", "dom130807_pd",
+                     "dropping_breaking_01", "fasten_your_seat_belt", "firework_part", "german_march_band", "laughter", "laundrette"]
+        name = self.settings["Name"]
+        if not os.path.isfile(self.file_system.path+"/noises"):
+            self.log.info("downloading soundbackup")
+            makedirs(self.file_system.path+"/noises/mp3", exist_ok=True)
+            for f in soundfiles:
+                if not os.path.isfile(self.file_system.path+"/noises/mp3/"+f+".mp3"):
+                    self.log.info("downloade file: "+str(f))
+                    wget.download('http://downloads.tuxfamily.org/pdsounds/sounds/'+f+'.mp3', 
+                                    self.file_system.path+'/noises/mp3/'+f+'.mp3', bar=self.bar_custom)
+        #onlyfiles = next(os.walk(self.settings["file_path"]+name+"/not-wake-word/noises"))[2]
+        #if len(onlyfiles) <= 30:
+        makedirs(self.file_system.path+"/noises/noises", exist_ok=True)  
+        onlyfiles = next(os.walk(self.file_system.path+"/noises/noises"))[2]
+        if len(onlyfiles) <= 15:
+            folder = self.file_system.path+"/noises/mp3/"
+            fileformat = '.mp3'
+            for root, dirs, files in os.walk(folder):
+                for f in files:
+                    filename = os.path.join(root, f)
+                    if filename.endswith(fileformat):
+                        self.log.info("Filename: "+filename)
+                        soundfile = filename.replace(fileformat, '').replace(folder, '')
+                        # convert and shorten files to 5 s
+                        call(["ffmpeg -i "+filename+" -acodec pcm_s16le -t 5 -ar 16000 -ac 1 -f wav "+
+                            self.file_system.path+"/noises/noises/"+soundfile+".wav"],
+                            preexec_fn=os.setsid, shell=True)
+                        self.log.info("extratct: "+filename)
+            self.speak_dialog("download.success")
+        makedirs(self.settings["file_path"]+name+"/not-wake-word", exist_ok=True)
+        self.noise_folder = self.file_system.path+"/noises/noises/"
 
-        '''
-    def precise_calc_check(self, message):
-        self.log.info("precise: check for end calculation ")
-        name = self.settings["Name"]
-        makedirs(self.file_system.path+"/"+name+".logs", exist_ok=True)
-        if not self.precise_calc.poll() is None:
-            self.cancel_scheduled_event('PreciseCalc')
-            if os.path.isfile(self.file_system.path+"/"+self.settings["Name"]+".net"):
-                self.log.info("start convert file: ")
-                self.precise_con(name, message)
-        #Write logfile calculation to disk
-        file = open(self.file_system.path+"/"+name+".logs/output.txt", "a")
-        if not self.precise_calc.stdout is None:
-            for line in iter(self.precise_calc.stdout.readline, b''):
-                data = str(line.rstrip()).replace("b'", "").replace("' ", "")
-                file.write(data + "\n")
-                self.log.info("schreibe log: "+data)
-            file.close()
-        '''
-        '''
-    def precise_con_check(self, message):
-        self.log.info("precise: check for end converting ")
-        self.cancel_scheduled_event('PreciseCalc')
-        name = self.settings["Name"]
-        if not self.precise_convert.poll() is None:
-            self.cancel_scheduled_event('PreciseConvert')
-            if not self.select_precise_file is None:
-                self.speak_dialog("end.calculating",
-                        data={"name": self.settings["Name"]})
-                self.config(name, message)
-        '''
+    def bar_custom(self, current, total, width=80):
+        self.log.info("Downloading: %d%% [%d / %d] bytes" % (current / total * 100, current, total))
 
     def precise_con(self, name, message):
         self.log.info("precise: start convert to .pb")
@@ -648,15 +542,6 @@ class WakeWord(FallbackSkill):
             join(self.exe_folder, 'precise-convert'),
             self.file_system.path+"/"+name+".pb", self.file_system.path+"/"+name+".net"
         ])
-        '''
-        self.precise_convert = subprocess.Popen([self.file_system.path+"/precise/.venv/bin/python "+
-                                    self.file_system.path+"/precise/precise/scripts/convert.py -o "+
-                                    self.file_system.path+"/"+name+".pb "+
-                                    self.file_system.path+"/"+name+".net "],
-                                    bufsize=-1, preexec_fn=os.setsid, shell=True)
-        self.schedule_repeating_event(self.precise_con_check, None, 3,
-                                      name='PreciseConvert')
-        '''
         return True
 
     def select_precise_file(self, name, message):
@@ -817,7 +702,7 @@ class WakeWord(FallbackSkill):
         if not os.path.isfile(readmefile):
             file.write("# "+name+"\n")
         file.write("\n### "+name+"-"+self.lang[:3]+time.strftime("%Y%m%d")+"\n")
-        file.write(presiceversion+" "+traininfo[:1]+". Use Public Domain Sounds Backup:"+str(self.settings["soundbackup"])+
+        file.write(presiceversion+" "+traininfo[:1]+". Use Public Domain Sounds Backup: http://downloads.tuxfamily.org/pdsounds/sounds/"+
                     ", automatically generated by wakeword trainer skill \n")
         file.close()
 
@@ -887,7 +772,7 @@ class WakeWord(FallbackSkill):
         repo.index.add(["licenses"])
         repo.index.add([name])
         repo.index.commit("Files automatically generated by gras64 wakeword trainer skill")
-        subprocess.call(['git', 'push', '-u', 'origin', 'master'], cwd='/home/pi/.mycroft/skills/WakeWord/Precise-Community-Data')
+        call(['git', 'push', '-u', 'origin', 'master'], cwd='/home/pi/.mycroft/skills/WakeWord/Precise-Community-Data')
         #repo.git.request-pull(self.settings["repo"])
         self.speak_dialog("upload.success", data={'name': name})
 

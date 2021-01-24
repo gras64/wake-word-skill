@@ -20,6 +20,8 @@ This skill should make it easier for everyone to use their own precise wake word
 
 ## Credits
 gras64
+https://github.com/MycroftAI/mycroft-precise-trainer
+
 ## functionality
 You say mycroft "I want to call you Christopher" and mycroft looks for a precise configuratios file. if under ./mycroft/precise and and in the skill folder no file is present starts learning. if there is a file, the configuration will be adjusted accordingly. You can also upgrade or upload your model to your repo and than to https://github.com/MycroftAI/Precise-Community-Data.git 
 
