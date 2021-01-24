@@ -852,6 +852,8 @@ class WakeWord(FallbackSkill):
         ])
         self.log.info("add not noise wakeword "+ self.model_file+" "+model_file)
         shutil.copy(self.model_file, model_file)
+        makedirs(self.file_system.path+"/tmp", exist_ok=True)
+        shutil.copy(noised_folder, self.file_system.path+"/tmp")
 
         call([
             join(self.exe_folder, 'precise-train'),
