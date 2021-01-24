@@ -5,6 +5,9 @@ dependencies:
     - wget
     - partial
     - h5py
+
+  system:
+    all: ffmpeg
 #
 #  system:
 #    all: python3-pip libopenblas-dev python3-scipy cython libhdf5-dev python3-h5py portaudio19-dev ffmpeg hdf5-helpers libaec-dev libaec0 libatlas3-base libhdf5-103 libhdf5-cpp-103 libopenblas-base libsz2 python3-decorator python3-numpy

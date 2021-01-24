@@ -24,7 +24,6 @@ from math import sqrt
 
 import psutil as psutil
 
-import ffmpeg
 import _thread
 import git
 import pyaudio
